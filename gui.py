@@ -375,10 +375,16 @@ class MainWindow(QMainWindow):
             for _ in range(samples_per_point):
                 if self.abort_auto:
                     break
-                data = self.lj.read_sensors()
-                if data:
-                    samples.append(data)
+
+                # --- Simulación temporal si no hay LabJack conectado ---
+                try:
+                    data = self.lj.read_sensors()
+                except Exception:
+                    data = None
+
+                samples.append(data)
                 time.sleep(0.2)
+
 
             if not samples:
                 continue
@@ -388,6 +394,33 @@ class MainWindow(QMainWindow):
             avg["Brake (%)"] = point
             self.results.append(avg)
             self.log(f"📊 Point {point}% → RPM={avg['RPM']:.1f}, Torque={avg['Par']:.2f}")
+
+            now = datetime.datetime.now()
+            date = now.strftime("%d/%m/%Y")
+            hour = now.strftime("%H:%M:%S")
+
+            row_position = self.table.rowCount()
+            self.table.insertRow(row_position)
+
+            # Número de registro
+            self.table.setItem(row_position, 0, QTableWidgetItem(str(row_position + 1)))
+            self.table.setItem(row_position, 1, QTableWidgetItem(date))
+            self.table.setItem(row_position, 2, QTableWidgetItem(hour))
+
+            # 🔹 Insertar las variables promedio (mismo orden que en la tabla)
+            values = [
+                f"{avg['Tentrada']:.3f}",
+                f"{avg['Tambiente']:.3f}",
+                f"{avg['RPM']:.1f}",
+                f"{avg['Caudal']:.3f}",
+                f"{avg['Par']:.3f}",
+                f"{avg['Presion']:.3f}",
+            ]
+
+            for j, val in enumerate(values):
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row_position, j + 3, item)
 
         # --- Fin del test ---
         self.lj.send_command("set_brake", 0)
@@ -460,7 +493,7 @@ class MainWindow(QMainWindow):
             df_manual = pd.DataFrame(rows)
 
             # Nombre sugerido con timestamp
-            suggested_name = f"manual_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            suggested_name = f"practice_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
             # Abrir diálogo para elegir dónde guardar
             file_path, _ = QFileDialog.getSaveFileName(
