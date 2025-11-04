@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, QTimer
 from labjack_interface import LabJackInterface
 import pyqtgraph as pg
 import time, sys, datetime
+import pandas as pd
 
 
 class MainWindow(QMainWindow):
@@ -69,11 +70,29 @@ class MainWindow(QMainWindow):
         self.btn_auto = QPushButton("🤖 Start Automatic Test")
         self.btn_auto.clicked.connect(self.start_auto_test)
 
+        # === Botón STOP del test automático ===
+        self.abort_auto = False
+        self.btn_stop_auto = QPushButton("⏹ Stop Test")
+        self.btn_stop_auto.clicked.connect(self.stop_auto_test)
+        self.btn_stop_auto.setEnabled(False)
+
+        # === Botón EXPORTAR resultados ===
+        self.btn_export = QPushButton("💾 Export Results")
+        self.btn_export.clicked.connect(self.export_results)
+        self.btn_export.setEnabled(False)  # activado solo cuando haya datos
+
+        # --- Añadir todos los controles ---
         v_ctrl.addWidget(self.btn_motor)
         v_ctrl.addWidget(self.lbl_brake)
         v_ctrl.addWidget(self.slider_brake)
         v_ctrl.addWidget(self.btn_auto)
+        v_ctrl.addWidget(self.btn_stop_auto)
+        v_ctrl.addWidget(self.btn_export)
         self.group_control.setLayout(v_ctrl)
+
+        # === Variable para resultados del test automático ===
+        self.results = []
+
 
         # --- Add both side by side ---
         top_layout.addWidget(self.group_meas, stretch=3)
@@ -233,7 +252,12 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        # --- Preparación ---
         self.timer.stop()
+        self.abort_auto = False
+        self.results = []  # limpiar resultados previos
+        self.btn_stop_auto.setEnabled(True)
+        self.btn_export.setEnabled(False)
         self.log("🚀 Starting automatic test...")
 
         brake_points = [0, 10, 20, 30, 40, 50]
@@ -241,16 +265,31 @@ class MainWindow(QMainWindow):
         samples_per_point = 10
 
         for point in brake_points:
+            if self.abort_auto:
+                self.log("⚠️ Automatic test aborted by user.")
+                break
+
             voltage = point / 10.0
             self.lj.send_command("set_brake", voltage)
             self.lbl_brake.setText(f"Brake setpoint (DAC1): {voltage:.1f} V")
             self.log(f"⚙️ Applying load: {voltage:.1f} V ({point}%)")
             QApplication.processEvents()
 
-            time.sleep(settle_time)
+            # Esperar estabilización con GUI viva
+            for _ in range(int(settle_time * 10)):
+                if self.abort_auto:
+                    break
+                QApplication.processEvents()
+                time.sleep(0.1)
 
+            if self.abort_auto:
+                break
+
+            # Tomar muestras
             samples = []
             for _ in range(samples_per_point):
+                if self.abort_auto:
+                    break
                 data = self.lj.read_sensors()
                 if data:
                     samples.append(data)
@@ -259,14 +298,51 @@ class MainWindow(QMainWindow):
             if not samples:
                 continue
 
+            # Calcular promedios
             avg = {k: sum(d[k] for d in samples) / len(samples) for k in samples[0]}
+            avg["Brake (%)"] = point
+            self.results.append(avg)
             self.log(f"📊 Point {point}% → RPM={avg['RPM']:.1f}, Torque={avg['Par']:.2f}")
 
+        # --- Fin del test ---
         self.lj.send_command("set_brake", 0)
         self.slider_brake.setValue(0)
         self.timer.start(500)
-        self.log("✅ Automatic test completed.")
-        QMessageBox.information(self, "Finished", "Automatic test completed successfully.")
+        self.btn_stop_auto.setEnabled(False)
+        self.btn_export.setEnabled(True)
+
+        if not self.abort_auto:
+            self.log("✅ Automatic test completed.")
+            QMessageBox.information(self, "Finished", "Automatic test completed successfully.")
+        else:
+            self.log("🟡 Test stopped before completion.")
+            QMessageBox.information(self, "Stopped", "Automatic test aborted.")
+
+    def stop_auto_test(self):
+        """Permite detener el test automático de forma segura."""
+        self.abort_auto = True
+        self.log("🟡 Stop requested by user...")
+
+    # =====================================================
+    # EXPORT DATA
+    # =====================================================
+    def export_results(self):
+        """Guarda los resultados del test automático en un archivo CSV."""
+        if not self.results:
+            QMessageBox.information(self, "No Data", "No test results to export.")
+            return
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"test_results_{timestamp}.csv"
+
+        try:
+            df = pd.DataFrame(self.results)
+            df.to_csv(filename, index=False)
+            self.log(f"💾 Data exported to {filename}")
+            QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
+        except Exception as e:
+            self.log(f"❌ Export failed: {e}")
+            QMessageBox.critical(self, "Export Failed", str(e))
 
     # =====================================================
     # LOG PANEL
@@ -281,6 +357,28 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.lj.close()
         event.accept()
+
+# =====================================================
+# EXPORT DATA
+# =====================================================
+
+def export_results(self):
+    """Guarda los resultados del test automático en un archivo CSV."""
+    if not self.results:
+        QMessageBox.information(self, "No Data", "No test results to export.")
+        return
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"test_results_{timestamp}.csv"
+
+    try:
+        df = pd.DataFrame(self.results)
+        df.to_csv(filename, index=False)
+        self.log(f"💾 Data exported to {filename}")
+        QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
+    except Exception as e:
+        self.log(f"❌ Export failed: {e}")
+        QMessageBox.critical(self, "Export Failed", str(e))
 
 
 # =====================================================
