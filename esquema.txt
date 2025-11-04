@@ -1,0 +1,69 @@
+INICIO
+│
+├── Verificar conexión del equipo
+│     └── Si no está conectado → mostrar error y detener
+│
+├── Calibración de sensores
+│     ├── Tomar 500 muestras de cada sensor (rpm, par, aire, temperatura)
+│     ├── Calcular promedios → OFFSET_x
+│     └── Mostrar barra de progreso durante calibración
+│
+├── Leer archivo "CalibrationTempSens.txt"
+│     ├── Extraer modo (0 = calibración, 1 = normal)
+│     ├── Leer GAIN_x de cada sensor
+│     └── Configurar modo de operación
+│
+├── Arranque del motor de combustión
+│     ├── Preguntar: "¿Motor al 100%?"
+│     │     ├── No → cancelar
+│     │     └── Sí → continuar
+│     ├── Girar motor eléctrico 4 segundos a 1500 RPM
+│     ├── Esperar confirmación de combustión
+│     └── Mostrar “Motor arrancado” si RPM > 2000
+│
+├── Calentamiento del motor
+│     ├── Mostrar mensaje "Warming up"
+│     ├── Esperar tiempo configurado (ej. 3600 s)
+│     └── Habilitar controles de adquisición
+│
+├── FASE DE OPERACIÓN
+│     ├── Mostrar variables en tiempo real
+│     │     ├── RPM = (lectura - OFFSET_rpm) * GAIN_rpm
+│     │     ├── Par = (lectura - OFFSET_par) * GAIN_par
+│     │     ├── Aire = ((lectura - OFFSET_aire) * GAIN_aire) * 0.01 * 2
+│     │     ├── TempEntrada = lectura * GAIN_input_temp
+│     │     ├── TempSalida = lectura * GAIN_termopar
+│     │     ├── Consumo = media(4 muestras) * 0.8 → L/h
+│     │     └── Actualizar color boxes según cada variable
+│     ├── Si RPM < 50 → mensaje “ENGINE STOPPED”
+│     └── Si Stop → pasar a “Parada”
+│
+├── Control manual / freno eléctrico
+│     ├── Preguntar: “¿Motor acelerado al máximo?”
+│     ├── Si Sí → permitir ajuste de freno (salida analógica)
+│     │     └── Enviar señal proporcional a GAIN_freno_eléctrico
+│     └── Si No → cancelar acción
+│
+├── Parada / salida
+│     ├── Preguntar: “¿Detener proceso?”
+│     ├── Si OK → Apagar salidas, freno, motor
+│     ├── Preguntar: “¿Salir del programa?”
+│     └── Si Sí → cerrar VI / ventana
+│
+└── FIN
+
+
+
+Inicio práctica automática
+│
+├─ Confirmar que el motor está encendido
+├─ Definir los puntos de ensayo (por ejemplo, [0, 10, 20, 30, 40, 50] → posiciones del freno)
+│
+├─ Para cada punto:
+│     ├─ Ajustar DAC1 (freno)
+│     ├─ Esperar estabilización (por ejemplo 5 s)
+│     ├─ Tomar N lecturas (por ejemplo 10)
+│     ├─ Calcular promedio de cada variable
+│     ├─ Guardar resultados
+│
+└─ Finalizar → restaurar freno a 0, mostrar mensaje “Práctica completada”.

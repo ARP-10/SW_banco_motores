@@ -1,62 +1,58 @@
 # gui_moderno.py
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QFileDialog, QMessageBox,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QMessageBox
 )
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon
 from labjack_interface import LabJackInterface
 import pyqtgraph as pg
-import pandas as pd
 import time, sys, datetime
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Banco de Motores TD 01.2")
+        self.setWindowTitle("Engine Test Bench TD 01.2")
         self.resize(1700, 800)
 
         self.lj = LabJackInterface()
         self.motor_on = False
-        self.data_records = []
         self.t0 = time.time()
 
-        # --- Crear la interfaz ---
+        # --- UI setup ---
         self.init_ui()
 
-        # --- Timer para lecturas ---
+        # --- Timer for real-time readings ---
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_readings)
         self.timer.start(500)
 
     # =====================================================
-    # INTERFAZ
+    # UI SETUP
     # =====================================================
     def init_ui(self):
-        main_layout = QHBoxLayout()  # 🔹 Estructura principal horizontal
+        main_layout = QHBoxLayout()
 
-        # === Panel izquierdo (lecturas, control, gráfica, botones) ===
+        # === Left panel (measurements, control, graph) ===
         left_layout = QVBoxLayout()
 
-        # --- Sección superior: lecturas + control ---
+        # --- Top: measurements + control ---
         top_layout = QHBoxLayout()
 
-        # ----- Lecturas -----
-        self.group_lecturas = QGroupBox("📊 Real-time measurements")
-        self.group_lecturas.setObjectName("group_lecturas")
+        # ----- Measurements -----
+        self.group_meas = QGroupBox("📊 Real-Time Measurements")
+        self.group_meas.setObjectName("group_lecturas")
 
         grid = QVBoxLayout()
         self.lbls = {}
-        for name in ["Tentrada", "Tambiente", "RPM", "Caudal", "Par", "Presion"]:
+        for name in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
             lbl = QLabel(f"{name}: —")
             lbl.setStyleSheet("font-weight: 600; font-size: 13pt; color: #FFFFFF;")
             grid.addWidget(lbl)
             self.lbls[name] = lbl
-        self.group_lecturas.setLayout(grid)
+        self.group_meas.setLayout(grid)
 
-        # ----- Controles -----
+        # ----- Controls -----
         self.group_control = QGroupBox("⚙️ Equipment Control")
         v_ctrl = QVBoxLayout()
 
@@ -68,157 +64,218 @@ class MainWindow(QMainWindow):
         self.slider_brake.setRange(0, 50)
         self.slider_brake.setValue(0)
         self.slider_brake.valueChanged.connect(self.update_brake)
-        self.lbl_brake = QLabel("Consigna de freno (DAC1): 0.0 V")
+        self.lbl_brake = QLabel("Brake setpoint (DAC1): 0.0 V")
+
+        self.btn_auto = QPushButton("🤖 Start Automatic Test")
+        self.btn_auto.clicked.connect(self.start_auto_test)
 
         v_ctrl.addWidget(self.btn_motor)
         v_ctrl.addWidget(self.lbl_brake)
         v_ctrl.addWidget(self.slider_brake)
+        v_ctrl.addWidget(self.btn_auto)
         self.group_control.setLayout(v_ctrl)
 
-        # --- Añadir ambos al mismo nivel ---
-        top_layout.addWidget(self.group_lecturas, stretch=3)
+        # --- Add both side by side ---
+        top_layout.addWidget(self.group_meas, stretch=3)
         top_layout.addWidget(self.group_control, stretch=2)
         left_layout.addLayout(top_layout)
 
-        # === Gráfica ===
-        self.group_grafica = QGroupBox("📈 Real-Time Graph")
-        v_graf = QVBoxLayout()
+        # === Graph ===
+        self.group_graph = QGroupBox("📈 Real-Time Graph")
+        v_graph = QHBoxLayout()  # ← horizontal para añadir leyenda a la derecha
+
+        # --- Plot ---
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#FFFFFF")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setLabel("left", "Magnitud", color="#000")
-        self.plot_widget.setLabel("bottom", "Tiempo (s)", color="#000")
+        self.plot_widget.setLabel("left", "Magnitude", color="#000")
+        self.plot_widget.setLabel("bottom", "Time (s)", color="#000")
+
+        # --- Curves (6 signals) ---
         self.curves = {
-            "RPM": self.plot_widget.plot(pen=pg.mkPen("#F39C12", width=2), name="RPM"),
-            "Par": self.plot_widget.plot(pen=pg.mkPen("#27AE60", width=2), name="Par"),
+            "Inlet Temp": self.plot_widget.plot(pen=pg.mkPen("#3498DB", width=2)),
+            "Ambient Temp": self.plot_widget.plot(pen=pg.mkPen("#9B59B6", width=2)),
+            "RPM": self.plot_widget.plot(pen=pg.mkPen("#F39C12", width=2)),
+            "Air Flow": self.plot_widget.plot(pen=pg.mkPen("#27AE60", width=2)),
+            "Torque": self.plot_widget.plot(pen=pg.mkPen("#E74C3C", width=2)),
+            "Pressure": self.plot_widget.plot(pen=pg.mkPen("#2C3E50", width=2)),
         }
-        v_graf.addWidget(self.plot_widget)
-        self.group_grafica.setLayout(v_graf)
-        left_layout.addWidget(self.group_grafica)
 
-        # --- Botones de guardado/exportación ---
-        h_btns = QHBoxLayout()
-        self.btn_guardar = QPushButton("💾 Save data")
-        self.btn_export = QPushButton("📤 Export")
-        self.btn_guardar.clicked.connect(self.save_data)
-        self.btn_export.clicked.connect(self.export_csv)
-        h_btns.addStretch()
-        h_btns.addWidget(self.btn_guardar)
-        h_btns.addWidget(self.btn_export)
-        left_layout.addLayout(h_btns)
+        # --- Legend panel with checkboxes ---
+        legend_layout = QVBoxLayout()
+        legend_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        legend_layout.setSpacing(6)
 
-        # === Panel derecho: tabla de datos ===
+        self.checks = {}
+        for name, color in zip(
+            self.curves.keys(),
+            ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
+        ):
+            cb = pg.QtWidgets.QCheckBox(name)
+            cb.setChecked(True)
+            cb.setStyleSheet(f"color: {color}; font-weight: 600; font-size: 10pt;")
+            cb.stateChanged.connect(self.update_curve_visibility)
+            self.checks[name] = cb
+            legend_layout.addWidget(cb)
+
+        # --- Combine plot + legend ---
+        v_graph.addWidget(self.plot_widget, stretch=4)
+        legend_widget = QWidget()
+        legend_widget.setLayout(legend_layout)
+        v_graph.addWidget(legend_widget, stretch=1)
+        self.group_graph.setLayout(v_graph)
+        left_layout.addWidget(self.group_graph)
+
+        # === Data storage ===
+        self.data_x = []
+        self.data = {key: [] for key in self.curves.keys()}
+
+
+        # === Right panel: logs ===
         right_layout = QVBoxLayout()
-        self.group_tabla = QGroupBox("📋 Datos guardados")
-        v_tabla = QVBoxLayout()
+        self.group_logs = QGroupBox("System Logs")
+        self.group_logs.setObjectName("group_logs") 
+        v_logs = QVBoxLayout()
+        self.txt_logs = QTextEdit()
+        self.txt_logs.setReadOnly(True)
+        v_logs.addWidget(self.txt_logs)
+        self.group_logs.setLayout(v_logs)
+        right_layout.addWidget(self.group_logs)
 
-        self.table = QTableWidget()
-        self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(
-            ["#", "Hora", "Tentrada", "Tambiente", "RPM", "Caudal", "Par", "Presion"]
-        )
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.horizontalHeader().setStretchLastSection(True)
-
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-
-        v_tabla.addWidget(self.table)
-        self.group_tabla.setLayout(v_tabla)
-        right_layout.addWidget(self.group_tabla)
-
-        # === Composición final ===
-        main_layout.addLayout(left_layout, stretch=5)
-        main_layout.addLayout(right_layout, stretch=5)
+        # === Combine ===
+        main_layout.addLayout(left_layout, stretch=6)
+        main_layout.addLayout(right_layout, stretch=4)
 
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
-        # === Datos ===
-        self.data_x, self.data_rpm, self.data_par = [], [], []
-
+        self.data_x, self.data_rpm, self.data_torque = [], [], []
 
     # =====================================================
-    # FUNCIONES DE CONTROL
+    # CONTROL FUNCTIONS
     # =====================================================
     def toggle_motor(self):
         self.motor_on = not self.motor_on
         if self.motor_on:
             self.lj.send_command("motor_on")
             self.btn_motor.setText("🟢 Motor ON")
-            self.log("✅ Motor encendido (FIO0 = 1)")
+            self.log("✅ Motor turned ON (FIO0 = 1)")
         else:
             self.lj.send_command("motor_off")
             self.btn_motor.setText("🔴 Motor OFF")
-            self.log("🛑 Motor apagado (FIO0 = 0)")
+            self.log("🛑 Motor turned OFF (FIO0 = 0)")
 
     def update_brake(self, value):
         voltage = value / 10.0
         self.lj.send_command("set_brake", voltage)
-        self.lbl_brake.setText(f"Consigna de freno (DAC1): {voltage:.1f} V")
-        self.log(f"⚙️ DAC1 actualizado → {voltage:.1f} V")
+        self.lbl_brake.setText(f"Brake setpoint (DAC1): {voltage:.1f} V")
+        self.log(f"⚙️ DAC1 updated → {voltage:.1f} V")
 
     # =====================================================
-    # LECTURA DE DATOS
+    # DATA READING
     # =====================================================
     def update_readings(self):
         data = self.lj.read_sensors()
         if not data:
             return
-        for k, v in data.items():
-            self.lbls[k].setText(f"{k}: {v:.3f}")
+
+        # Actualizar etiquetas
+        mapping = {
+            "Inlet Temp": "Tentrada",
+            "Ambient Temp": "Tambiente",
+            "RPM": "RPM",
+            "Air Flow": "Caudal",
+            "Torque": "Par",
+            "Pressure": "Presion"
+        }
+
+        for label, key in mapping.items():
+            value = data[key]
+            self.lbls[label].setText(f"{label}: {value:.3f}")
+
+        # Añadir datos nuevos
         t = time.time() - self.t0
         self.data_x.append(t)
-        self.data_rpm.append(data["RPM"])
-        self.data_par.append(data["Par"])
-        self.curves["RPM"].setData(self.data_x, self.data_rpm)
-        self.curves["Par"].setData(self.data_x, self.data_par)
+        for label, key in mapping.items():
+            self.data[label].append(data[key])
+
+        # Actualizar curvas activas
+        for label, curve in self.curves.items():
+            if self.checks[label].isChecked():
+                curve.setData(self.data_x, self.data[label])
+            else:
+                curve.clear()
+
+    def update_curve_visibility(self):
+        """Show/hide curves when checkboxes are toggled"""
+        for name, curve in self.curves.items():
+            if self.checks[name].isChecked():
+                curve.setData(self.data_x, self.data[name])
+            else:
+                curve.clear()
+
 
     # =====================================================
-    # GUARDADO Y LOGS
+    # AUTOMATIC TEST
     # =====================================================
-    def save_data(self):
-        try:
-            hora = datetime.datetime.now().strftime("%H:%M:%S")
-            valores = [float(v.text().split(": ")[1].replace("—", "0")) for v in self.lbls.values()]
-            self.data_records.append([hora] + valores)
-
-            # Añadir fila a la tabla
-            i = len(self.data_records)
-            self.table.setRowCount(i)
-            self.table.setItem(i - 1, 0, QTableWidgetItem(str(i)))
-            self.table.setItem(i - 1, 1, QTableWidgetItem(hora))
-            for j, val in enumerate(valores):
-                self.table.setItem(i - 1, j + 2, QTableWidgetItem(f"{val:.3f}"))
-
-            self.log("💾 Dato guardado en la tabla y memoria.")
-        except Exception as e:
-            self.log(f"⚠️ Error al guardar: {e}")
-
-
-    def export_csv(self):
-        if self.table.rowCount() == 0:
-            QMessageBox.warning(self, "Sin datos", "No hay datos guardados.")
-            return
-        path, _ = QFileDialog.getSaveFileName(self, "Guardar CSV", "", "CSV Files (*.csv)")
-        if not path:
+    def start_auto_test(self):
+        if not self.motor_on:
+            QMessageBox.warning(self, "Motor Off", "Please turn ON the motor before starting the automatic test.")
             return
 
-        headers = [self.table.horizontalHeaderItem(i).text() for i in range(self.table.columnCount())]
-        data = []
-        for r in range(self.table.rowCount()):
-            fila = []
-            for c in range(self.table.columnCount()):
-                item = self.table.item(r, c)
-                fila.append(item.text() if item else "")
-            data.append(fila)
+        reply = QMessageBox.question(
+            self,
+            "Confirm",
+            "Start the automatic test?\nThe system will apply loads automatically.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
 
-        df = pd.DataFrame(data, columns=headers)
-        df.to_csv(path, index=False)
-        QMessageBox.information(self, "Exportación", "Datos exportados correctamente.")
+        self.timer.stop()
+        self.log("🚀 Starting automatic test...")
 
+        brake_points = [0, 10, 20, 30, 40, 50]
+        settle_time = 5
+        samples_per_point = 10
+
+        for point in brake_points:
+            voltage = point / 10.0
+            self.lj.send_command("set_brake", voltage)
+            self.lbl_brake.setText(f"Brake setpoint (DAC1): {voltage:.1f} V")
+            self.log(f"⚙️ Applying load: {voltage:.1f} V ({point}%)")
+            QApplication.processEvents()
+
+            time.sleep(settle_time)
+
+            samples = []
+            for _ in range(samples_per_point):
+                data = self.lj.read_sensors()
+                if data:
+                    samples.append(data)
+                time.sleep(0.2)
+
+            if not samples:
+                continue
+
+            avg = {k: sum(d[k] for d in samples) / len(samples) for k in samples[0]}
+            self.log(f"📊 Point {point}% → RPM={avg['RPM']:.1f}, Torque={avg['Par']:.2f}")
+
+        self.lj.send_command("set_brake", 0)
+        self.slider_brake.setValue(0)
+        self.timer.start(500)
+        self.log("✅ Automatic test completed.")
+        QMessageBox.information(self, "Finished", "Automatic test completed successfully.")
+
+    # =====================================================
+    # LOG PANEL
+    # =====================================================
+    def log(self, message):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        text = f"[{timestamp}] {message}"
+        print(text)
+        self.txt_logs.append(text)
 
     # =====================================================
     def closeEvent(self, event):
@@ -227,14 +284,14 @@ class MainWindow(QMainWindow):
 
 
 # =====================================================
-# EJECUCIÓN
+# EXECUTION
 # =====================================================
 def load_stylesheet(app, path="style.qss"):
     try:
         with open(path, "r", encoding="utf-8") as f:
             app.setStyleSheet(f.read())
     except Exception as e:
-        print(f"[QSS] No se pudo cargar hoja de estilos: {e}")
+        print(f"[QSS] Stylesheet could not be loaded: {e}")
 
 
 if __name__ == "__main__":

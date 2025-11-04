@@ -1,68 +1,68 @@
 /* ============================================================
-   ESTILO GLOBAL - LABORATORIO DIKOIN
+   GLOBAL STYLE - DIKOIN LAB
    ============================================================ */
 
-/* === FONDO GENERAL === */
+/* === GENERAL BACKGROUND === */
 QWidget {
-    background-color: #ecf1fd; 
+    background-color: #ecf1fd;
     color: #000000;
     font-family: "Segoe UI";
     font-size: 11pt;
 }
 
-/* === QGROUPBOX === */
+/* === DEFAULT GROUPBOX === */
 QGroupBox {
-    background-color: #FFFFFF;      
+    background-color: #FFFFFF;
     border-radius: 20px;
-    border: none;
+    border: 2px solid #C9D6E8;
     padding: 36px 28px 24px 28px;
     font: 600 14pt "Segoe UI";
-    box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.10);
     margin: 8px 8px;
 }
 
-QGroupBox:hover {
-    box-shadow: 0px 12px 28px rgba(0, 0, 0, 0.30);
-    transform: scale(1.01);
-    transition: all 0.25s ease-in-out;
-}
-
-
-QGroupBox QWidget {
-    background-color: #FFFFFF;     
-}
-
-/* Nota: en algunos estilos el tamaño se coge de QGroupBox (no de ::title). */
-QGroupBox::title {      
-    subcontrol-position: top left; 
-    margin-top: 10px;      
+/* === TITLES === */
+QGroupBox::title {
+    subcontrol-position: top left;
+    margin-top: 10px;
     margin-left: 20px;
     color: #0077b6;
     font: 600 14pt "Segoe UI";
-    padding-left: 40px; 
+    padding-left: 40px;
+}
+
+/* ============================================================
+   🔹 REAL-TIME MEASUREMENTS PANEL
+   ============================================================ */
+QGroupBox#group_lecturas {
+    background-color: #0077b6;
+    border-radius: 20px;
+    border: none;
+    padding-top: 70px;
+    color: #FFFFFF;
+}
+
+QGroupBox#group_lecturas::title {
+    color: #FFFFFF;
+    font: 700 14pt "Segoe UI";
+    margin-left: 20px;
+    margin-top: 10px;
+    padding-left: 50px;
+    background-image: url("icons/measures.png");
     background-repeat: no-repeat;
     background-position: left center;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    min-height: 32px;
 }
 
-/* === CONTROL DEL EQUIPO === */
-/* Espacio extra entre título y contenido */
-QGroupBox#group_control {
-    padding-top: 60px;  /* 🔹 antes era 40px por defecto */
+/* Text inside the measurements panel */
+QGroupBox#group_lecturas QLabel {
+    background: transparent;
+    color: #FFFFFF;
+    font-size: 11pt;
+    font-weight: 500;
 }
 
-QGroupBox#group_grafica {
-    padding-top: 60px;
-}
-
-QGroupBox#group_tabla {
-    padding-top: 60px;
-    margin: 4px 8px;
-}
-
-
+/* ============================================================
+   🔹 CONTROL PANEL
+   ============================================================ */
 QGroupBox#group_control::title {
     color: #0077b6;
     font: 700 14pt "Segoe UI";
@@ -74,7 +74,9 @@ QGroupBox#group_control::title {
     padding-left: 50px;
 }
 
-/* === GRÁFICA === */
+/* ============================================================
+   🔹 GRAPH PANEL
+   ============================================================ */
 QGroupBox#group_grafica::title {
     color: #0077b6;
     font: 700 14pt "Segoe UI";
@@ -86,271 +88,98 @@ QGroupBox#group_grafica::title {
     padding-left: 50px;
 }
 
-/* === RESULTADOS === */
-QGroupBox#group_tabla::title {
-    color: #0077b6;
+/* ============================================================
+   🔹 LOG PANEL (same blue as measurements)
+   ============================================================ */
+QGroupBox#group_logs {
+    background-color: #0077b6;
+    border-radius: 20px;
+    border: none;
+    padding-top: 70px;
+    color: #FFFFFF;
+}
+
+QGroupBox#group_logs::title {
+    color: #FFFFFF;
     font: 700 14pt "Segoe UI";
     margin-left: 20px;
     margin-top: 10px;
-    background-image: url("icons/practice.png");
+    padding-left: 50px;
+    background-image: url("icons/logs.png");
     background-repeat: no-repeat;
     background-position: left center;
-    padding-left: 50px;
 }
 
-
-
-/* === PUSH BUTTONS === */
-QPushButton {
+/* Text inside logs */
+QGroupBox#group_logs QTextEdit {
     background: #0077b6;
+    border: none;
+    color: #FFFFFF;
+    font-family: Consolas;
+    font-size: 11pt;
+}
+
+/* ============================================================
+   🔹 BUTTONS
+   ============================================================ */
+QPushButton {
+    background-color: #0077b6;
     color: #FFFFFF;
     border: none;
     border-radius: 14px;
     padding: 8px 16px;
     font-weight: 600;
     font-size: 11pt;
-    box-shadow: 0px 4px 10px rgba(0, 119, 182, 0.3);
 }
-
-QPushButton:hover {
-    background: #0096c7;
-}
-
 
 QPushButton:pressed {
-    background: #005f87;
-    transform: scale(0.97);
-}
-
-/* === BOTÓN DE IDIOMA (QToolButton) === */
-QToolButton#btn_language {
-    background-color: #0077b6;
-    color: #FFFFFF;
-    border: none;
-    border-radius: 14px;
-    padding: 4px 0px 4px 12px;
-    font-weight: 600;
-    font-size: 11pt;
-    box-shadow: 0px 4px 10px rgba(0, 119, 182, 0.3);
-    icon-size: 40px;
-}
-
-
-QToolButton#btn_language:hover {
-    background-color: #0096c7;
-}
-
-QToolButton#btn_language:pressed {
     background-color: #005f87;
-    transform: scale(0.97);
 }
 
-/* --- Menú desplegable del botón --- */
-QMenu {
-    background-color: #FFFFFF;
-    border: 1px solid #C9D6E8;
-    border-radius: 8px;
-    padding: 4px;
+/* ============================================================
+   🔹 SLIDERS
+   ============================================================ */
+QSlider::groove:horizontal {
+    height: 8px;
+    background: #A5D8FF;
+    border-radius: 4px;
 }
 
-QMenu::item {
-    padding: 6px 14px;
-    font-size: 10.5pt;
-    color: #000000;
-    border-radius: 6px;
-}
-
-QMenu::item:selected {
-    background-color: #E0EEFF;
-    color: #0078D7;
-}
-
-
-/* === LABELS === */
-QLabel {
-    font-size: 12pt;
-    color: #000000;
-}
-
-/* === TABLA DE RESULTADOS === */
-QTableWidget {
-    background-color: #FFFFFF;
-    border-radius: 14px;
-    border: none;
-    gridline-color: #E0E6F0;
-    alternate-background-color: #F3F7FB;
-    selection-background-color: #E0F0FF;
-    font-size: 10pt;
-    box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.08);
-}
-
-/* === CABECERA UNIFICADA === */
-QHeaderView::section {
+QSlider::handle:horizontal {
     background: #0077b6;
-    color: #FFFFFF;
-    font: 600 10.5pt "Segoe UI";
-    padding: 8px 6px;
-    border: none;
+    border: 2px solid #005f87;
+    width: 18px;
+    margin: -5px 0;
+    border-radius: 9px;
 }
 
-/* Redondea solo las esquinas externas */
-QHeaderView::section:first {
-    border-top-left-radius: 12px;
-}
-
-QHeaderView::section:last {
-    border-top-right-radius: 12px;
-}
-
-/* === FILAS === */
-QTableWidget::item {
-    padding: 6px;
-    border: none;
-}
-
-QTableWidget::item:selected {
-    background-color: #E1EEFF;
-    color: #000000;
-}
-
-
-/* === BLOQUE MEDIDAS EN TIEMPO REAL === */
-QGroupBox#group_lecturas {
-    background-color: #0077b6;  
-    border-radius: 20px;
-    border: none;
-    font: 600 14pt "Segoe UI";
-    box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.10);
-    padding-top: 70px;
-}
-
-/* Título de ese bloque */
-QGroupBox#group_lecturas::title {
-    color: #ffffff;              
-    font: 700 14pt "Segoe UI";
-    margin-left: 20px;
-    margin-top: 10px;
-    padding-left: 50px;
-    background-image: url("icons/measures.png");
-}
-
-/* Texto dentro del bloque (más claro para contrastar) */
-QGroupBox#group_lecturas QLabel {
-    background: transparent;
-    color: #FFFFFF;
-    font-size: 11pt;
-    font-weight: 500;
-}
-
-
-
-/* === QSLIDER === */
-QSlider::groove:vertical {
-    width: 40px;
-    border-radius: 10px;
-    margin: 10px 0;
-    background: qlineargradient(
-        x1:0, y1:1, x2:0, y2:0,
-        stop:0 #A5D8FF,
-        stop:1 #0078D7
-    );
-}
-
-QSlider::handle:vertical {
-    background: #FFFFFF;
-    border: 2px solid #0078D7;
-    height: 22px;
-    margin: -4px -14px;
-    border-radius: 10px;
-}
-
-
-
-/* === SCROLLBAR MODERNO CON PUNTAS REDONDEADAS VISIBLES === */
-
+/* ============================================================
+   🔹 SCROLLBARS
+   ============================================================ */
 QScrollBar:vertical {
-    background: #edf2ff;          /* azul muy claro, integrado con fondo */
+    background: #edf2ff;
     border: none;
     width: 14px;
-    margin: 6px 4px 6px 0;
-    border-radius: 7px;           /* curva el canal también */
+    margin: 6px 4px;
+    border-radius: 7px;
 }
 
-/* Handle con efecto visual redondeado */
 QScrollBar::handle:vertical {
-    background: qlineargradient(
-        x1:0, y1:0, x2:0, y2:1,
-        stop:0 #4EA3F7,
-        stop:1 #0078D7
-    );
+    background: #0077b6;
     border-radius: 7px;
     min-height: 30px;
-    margin: 3px 2px 3px 2px;      /* 🔹 deja espacio para que se vean las puntas */
-    border: 1px solid rgba(0,0,0,0.08);
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.15); /* simula curvatura */
 }
 
-/* Hover */
-QScrollBar::handle:vertical:hover {
-    background: qlineargradient(
-        x1:0, y1:0, x2:0, y2:1,
-        stop:0 #5CB0FF,
-        stop:1 #2188E8
-    );
-}
-
-/* Quita las flechas */
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    background: transparent;
-    border: none;
-    height: 0;
-}
-
-/* Espacios vacíos transparentes */
-QScrollBar::add-page:vertical,
-QScrollBar::sub-page:vertical {
-    background: transparent;
-}
-
-/* Scrollbar horizontal */
 QScrollBar:horizontal {
     background: #edf2ff;
     border: none;
     height: 14px;
-    margin: 0 6px 6px 6px;
+    margin: 6px;
     border-radius: 7px;
 }
 
 QScrollBar::handle:horizontal {
-    background: qlineargradient(
-        x1:0, y1:0, x2:1, y2:1,
-        stop:0 #4EA3F7,
-        stop:1 #0078D7
-    );
+    background: #0077b6;
     border-radius: 7px;
     min-width: 30px;
-    margin: 3px 2px;
-    border: 1px solid rgba(0,0,0,0.08);
-    box-shadow: 0px 2px 6px rgba(0,0,0,0.15);
-}
-
-QScrollBar::handle:horizontal:hover {
-    background: qlineargradient(
-        x1:0, y1:0, x2:1, y2:1,
-        stop:0 #5CB0FF,
-        stop:1 #2188E8
-    );
-}
-
-QScrollBar::add-line:horizontal,
-QScrollBar::sub-line:horizontal {
-    background: transparent;
-    border: none;
-    width: 0;
-}
-
-QScrollBar::add-page:horizontal,
-QScrollBar::sub-page:horizontal {
-    background: transparent;
 }
