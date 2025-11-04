@@ -1,8 +1,10 @@
 # gui_moderno.py
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QMessageBox
+    QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QMessageBox,
+    QTableWidget, QTableWidgetItem, QHeaderView
 )
+
 from PyQt6.QtCore import Qt, QTimer
 from labjack_interface import LabJackInterface
 import pyqtgraph as pg
@@ -53,8 +55,9 @@ class MainWindow(QMainWindow):
             self.lbls[name] = lbl
         self.group_meas.setLayout(grid)
 
-        # ----- Controls -----
+        # ----- CONTROL DEL EQUIPO -----
         self.group_control = QGroupBox("⚙️ Equipment Control")
+        self.group_control.setObjectName("group_control")
         v_ctrl = QVBoxLayout()
 
         self.btn_motor = QPushButton("🔴 Motor OFF")
@@ -67,37 +70,46 @@ class MainWindow(QMainWindow):
         self.slider_brake.valueChanged.connect(self.update_brake)
         self.lbl_brake = QLabel("Brake setpoint (DAC1): 0.0 V")
 
+        v_ctrl.addWidget(self.btn_motor)
+        v_ctrl.addWidget(self.lbl_brake)
+        v_ctrl.addWidget(self.slider_brake)
+        self.group_control.setLayout(v_ctrl)
+
+        # ----- PRUEBAS AUTOMÁTICAS -----
+        self.group_tests = QGroupBox("🧪 Automatic Tests")
+        self.group_tests.setObjectName("group_tests")
+        v_tests = QVBoxLayout()
+
         self.btn_auto = QPushButton("🤖 Start Automatic Test")
         self.btn_auto.clicked.connect(self.start_auto_test)
 
-        # === Botón STOP del test automático ===
-        self.abort_auto = False
         self.btn_stop_auto = QPushButton("⏹ Stop Test")
         self.btn_stop_auto.clicked.connect(self.stop_auto_test)
         self.btn_stop_auto.setEnabled(False)
 
-        # === Botón EXPORTAR resultados ===
         self.btn_export = QPushButton("💾 Export Results")
         self.btn_export.clicked.connect(self.export_results)
-        self.btn_export.setEnabled(False)  # activado solo cuando haya datos
+        self.btn_export.setEnabled(False)
 
-        # --- Añadir todos los controles ---
-        v_ctrl.addWidget(self.btn_motor)
-        v_ctrl.addWidget(self.lbl_brake)
-        v_ctrl.addWidget(self.slider_brake)
-        v_ctrl.addWidget(self.btn_auto)
-        v_ctrl.addWidget(self.btn_stop_auto)
-        v_ctrl.addWidget(self.btn_export)
-        self.group_control.setLayout(v_ctrl)
+        self.btn_save = QPushButton("💾 Save Current Data")
+        self.btn_save.clicked.connect(self.save_current_data)
 
-        # === Variable para resultados del test automático ===
-        self.results = []
+        v_tests.addWidget(self.btn_auto)
+        v_tests.addWidget(self.btn_stop_auto)
+        v_tests.addWidget(self.btn_save)
+        v_tests.addWidget(self.btn_export)
+
+        self.group_tests.setLayout(v_tests)
 
 
-        # --- Add both side by side ---
-        top_layout.addWidget(self.group_meas, stretch=3)
+        # --- Fila superior: medidas + control + pruebas ---
+        top_layout.addWidget(self.group_meas, stretch=2)
         top_layout.addWidget(self.group_control, stretch=2)
+        top_layout.addWidget(self.group_tests, stretch=2)
         left_layout.addLayout(top_layout)
+        left_layout.addSpacing(10)
+
+
 
         # === Graph ===
         self.group_graph = QGroupBox("📈 Real-Time Graph")
@@ -149,11 +161,61 @@ class MainWindow(QMainWindow):
         self.data_x = []
         self.data = {key: [] for key in self.curves.keys()}
 
-
-        # === Right panel: logs ===
+        # === Right panel: Saved Data + Logs ===
         right_layout = QVBoxLayout()
+
+        # =====================================================
+        # 🧮 TABLA DE DATOS GUARDADOS (como en it032_gui.py)
+        # =====================================================
+        self.group_table = QGroupBox("📋 Saved Measurements")
+        self.group_table.setObjectName("group_tabla")
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels([
+            "#", "Date", "Time", "Inlet Temp (°C)", "Ambient Temp (°C)",
+            "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
+        ])
+        self.table.verticalHeader().setVisible(False)
+        self.table.setAlternatingRowColors(True)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 30)
+
+        # Stretch el resto
+        for i in range(1, self.table.columnCount()):
+            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+
+        # --- Estilo visual coherente con DIKOIN UI ---
+        self.table.setStyleSheet("""
+            QTableWidget {
+                background-color: #FFFFFF;
+                border: none;
+                alternate-background-color: #F3F7FB;
+                selection-background-color: #E0F0FF;
+                font-size: 10pt;
+                box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.08);
+            }
+            QHeaderView::section {
+                background: #0077b6;
+                color: #FFFFFF;
+                font: 600 10.5pt "Segoe UI";
+                padding: 8px 6px;
+                border: none;
+            }
+        """)
+
+        v_table = QVBoxLayout()
+        v_table.addWidget(self.table)
+        self.group_table.setLayout(v_table)
+        right_layout.addWidget(self.group_table)
+
+        # =====================================================
+        # 🧾 SYSTEM LOGS
+        # =====================================================
         self.group_logs = QGroupBox("System Logs")
-        self.group_logs.setObjectName("group_logs") 
+        self.group_logs.setObjectName("group_logs")
         v_logs = QVBoxLayout()
         self.txt_logs = QTextEdit()
         self.txt_logs.setReadOnly(True)
@@ -161,13 +223,15 @@ class MainWindow(QMainWindow):
         self.group_logs.setLayout(v_logs)
         right_layout.addWidget(self.group_logs)
 
-        # === Combine ===
+        # === Combine layouts ===
         main_layout.addLayout(left_layout, stretch=6)
         main_layout.addLayout(right_layout, stretch=4)
 
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
+
+
 
         self.data_x, self.data_rpm, self.data_torque = [], [], []
 
@@ -218,6 +282,13 @@ class MainWindow(QMainWindow):
         self.data_x.append(t)
         for label, key in mapping.items():
             self.data[label].append(data[key])
+        
+        # Actualizar tabla con las lecturas actuales
+        i = 0
+        for label in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
+            self.table.setItem(0, i, QTableWidgetItem(self.lbls[label].text().split(": ")[1]))
+            i += 1
+
 
         # Actualizar curvas activas
         for label, curve in self.curves.items():
@@ -323,26 +394,6 @@ class MainWindow(QMainWindow):
         self.abort_auto = True
         self.log("🟡 Stop requested by user...")
 
-    # =====================================================
-    # EXPORT DATA
-    # =====================================================
-    def export_results(self):
-        """Guarda los resultados del test automático en un archivo CSV."""
-        if not self.results:
-            QMessageBox.information(self, "No Data", "No test results to export.")
-            return
-
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"test_results_{timestamp}.csv"
-
-        try:
-            df = pd.DataFrame(self.results)
-            df.to_csv(filename, index=False)
-            self.log(f"💾 Data exported to {filename}")
-            QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
-        except Exception as e:
-            self.log(f"❌ Export failed: {e}")
-            QMessageBox.critical(self, "Export Failed", str(e))
 
     # =====================================================
     # LOG PANEL
@@ -358,27 +409,85 @@ class MainWindow(QMainWindow):
         self.lj.close()
         event.accept()
 
-# =====================================================
-# EXPORT DATA
-# =====================================================
+    # =====================================================
+    # EXPORT DATA
+    # =====================================================
+    def export_results(self):
 
-def export_results(self):
-    """Guarda los resultados del test automático en un archivo CSV."""
-    if not self.results:
-        QMessageBox.information(self, "No Data", "No test results to export.")
-        return
+                # Si hay filas en la tabla manual → exportarlas
+        if self.table.rowCount() > 0:
+            rows = []
+            for i in range(self.table.rowCount()):
+                row = {}
+                for j, header in enumerate(["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]):
+                    item = self.table.item(i, j)
+                    row[header] = item.text() if item else ""
+                rows.append(row)
 
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"test_results_{timestamp}.csv"
+            df_manual = pd.DataFrame(rows)
+            filename = f"manual_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            df_manual.to_excel(filename, index=False, engine="openpyxl")
 
-    try:
-        df = pd.DataFrame(self.results)
-        df.to_csv(filename, index=False)
-        self.log(f"💾 Data exported to {filename}")
-        QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
-    except Exception as e:
-        self.log(f"❌ Export failed: {e}")
-        QMessageBox.critical(self, "Export Failed", str(e))
+            self.log(f"💾 Manual table exported to {filename}")
+
+        if not self.results:
+            QMessageBox.information(self, "No Data", "No test results to export.")
+            return
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"test_results_{timestamp}.xlsx"
+
+        try:
+            # Crear DataFrame y exportar a Excel
+            df = pd.DataFrame(self.results)
+            df.to_excel(filename, index=False, engine="openpyxl")
+
+            self.log(f"💾 Data exported to {filename}")
+            QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
+
+            
+
+        except Exception as e:
+            self.log(f"❌ Export failed: {e}")
+            QMessageBox.critical(self, "Export Failed", str(e))
+
+    def save_current_data(self):
+        """Guarda una nueva fila con los valores actuales en la tabla de datos."""
+        try:
+            now = datetime.datetime.now()
+            date = now.strftime("%d/%m/%Y")
+            hour = now.strftime("%H:%M:%S")
+
+            # Obtener lecturas actuales
+            values = [
+                self.lbls["Inlet Temp"].text().split(": ")[1],
+                self.lbls["Ambient Temp"].text().split(": ")[1],
+                self.lbls["RPM"].text().split(": ")[1],
+                self.lbls["Air Flow"].text().split(": ")[1],
+                self.lbls["Torque"].text().split(": ")[1],
+                self.lbls["Pressure"].text().split(": ")[1],
+            ]
+
+            # Insertar nueva fila
+            row_position = self.table.rowCount()
+            self.table.insertRow(row_position)
+
+            # Número de registro
+            self.table.setItem(row_position, 0, QTableWidgetItem(str(row_position + 1)))
+            self.table.setItem(row_position, 1, QTableWidgetItem(date))
+            self.table.setItem(row_position, 2, QTableWidgetItem(hour))
+
+            # Valores de las medidas
+            for j, val in enumerate(values):
+                item = QTableWidgetItem(val)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row_position, j + 3, item)
+
+
+        except Exception as e:
+            self.log(f"❌ Failed to save data: {e}")
+            QMessageBox.critical(self, "Save Error", str(e))
+
 
 
 # =====================================================

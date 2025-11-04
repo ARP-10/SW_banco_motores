@@ -30,6 +30,7 @@ QGroupBox::title {
     padding-left: 40px;
 }
 
+
 /* ============================================================
    🔹 REAL-TIME MEASUREMENTS PANEL
    ============================================================ */
@@ -44,9 +45,9 @@ QGroupBox#group_lecturas {
 QGroupBox#group_lecturas::title {
     color: #FFFFFF;
     font: 700 14pt "Segoe UI";
-    margin-left: 20px;
+    margin-left: 10px;
     margin-top: 10px;
-    padding-left: 50px;
+    padding-left: 20px;
     background-image: url("icons/measures.png");
     background-repeat: no-repeat;
     background-position: left center;
@@ -66,12 +67,12 @@ QGroupBox#group_lecturas QLabel {
 QGroupBox#group_control::title {
     color: #0077b6;
     font: 700 14pt "Segoe UI";
-    margin-left: 20px;
+    margin-left: 10px;
     margin-top: 10px;
+    padding-left: 20px;
     background-image: url("icons/control.png");
     background-repeat: no-repeat;
     background-position: left center;
-    padding-left: 50px;
 }
 
 /* ============================================================
@@ -85,7 +86,7 @@ QGroupBox#group_grafica::title {
     background-image: url("icons/graph.png");
     background-repeat: no-repeat;
     background-position: left center;
-    padding-left: 50px;
+    padding-left: 20px;
 }
 
 /* ============================================================
@@ -183,3 +184,26 @@ QScrollBar::handle:horizontal {
     border-radius: 7px;
     min-width: 30px;
 }
+
+
+/* === PRUEBAS AUTOMÁTICAS === */
+QGroupBox#group_tests {
+    background-color: #FFFFFF;
+    border-radius: 20px;
+    border: none;
+    font: 600 14pt "Segoe UI";
+    padding-top: 60px;
+}
+
+QGroupBox#group_tests::title {
+    color: #0077b6;
+    font: 700 14pt "Segoe UI";
+    margin-left: 10px;
+    margin-top: 10px;
+    padding-left: 20px;
+    background-image: url("icons/practice.png");
+    background-repeat: no-repeat;
+    background-position: left center;
+}
+
+
