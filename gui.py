@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QMessageBox,
-    QTableWidget, QTableWidgetItem, QHeaderView
+    QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog
 )
 
 from PyQt6.QtCore import Qt, QTimer
@@ -76,7 +76,7 @@ class MainWindow(QMainWindow):
         self.group_control.setLayout(v_ctrl)
 
         # ----- PRUEBAS AUTOMÁTICAS -----
-        self.group_tests = QGroupBox("🧪 Automatic Tests")
+        self.group_tests = QGroupBox("🧪 Control Panel")
         self.group_tests.setObjectName("group_tests")
         v_tests = QVBoxLayout()
 
@@ -89,7 +89,7 @@ class MainWindow(QMainWindow):
 
         self.btn_export = QPushButton("💾 Export Results")
         self.btn_export.clicked.connect(self.export_results)
-        self.btn_export.setEnabled(False)
+        self.btn_export.setEnabled(True)
 
         self.btn_save = QPushButton("💾 Save Current Data")
         self.btn_save.clicked.connect(self.save_current_data)
@@ -173,19 +173,33 @@ class MainWindow(QMainWindow):
         self.table = QTableWidget()
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
-            "#", "Date", "Time", "Inlet Temp (°C)", "Ambient Temp (°C)",
+            "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
             "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
         ])
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(0, 30)
 
-        # Stretch el resto
-        for i in range(1, self.table.columnCount()):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        # Columna #
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 5)
+
+        # Columnas Date y Time más estrechas
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(1, 70)  # Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(2, 70)   # Time
+
+       # === Ajuste de columnas con scroll ===
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setWordWrap(False)
+
+
+
 
         # --- Estilo visual coherente con DIKOIN UI ---
         self.table.setStyleSheet("""
@@ -413,43 +427,67 @@ class MainWindow(QMainWindow):
     # EXPORT DATA
     # =====================================================
     def export_results(self):
-
-                # Si hay filas en la tabla manual → exportarlas
-        if self.table.rowCount() > 0:
-            rows = []
-            for i in range(self.table.rowCount()):
-                row = {}
-                for j, header in enumerate(["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]):
-                    item = self.table.item(i, j)
-                    row[header] = item.text() if item else ""
-                rows.append(row)
-
-            df_manual = pd.DataFrame(rows)
-            filename = f"manual_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-            df_manual.to_excel(filename, index=False, engine="openpyxl")
-
-            self.log(f"💾 Manual table exported to {filename}")
-
-        if not self.results:
-            QMessageBox.information(self, "No Data", "No test results to export.")
-            return
-
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"test_results_{timestamp}.xlsx"
-
         try:
-            # Crear DataFrame y exportar a Excel
-            df = pd.DataFrame(self.results)
-            df.to_excel(filename, index=False, engine="openpyxl")
+            rows = []
 
-            self.log(f"💾 Data exported to {filename}")
-            QMessageBox.information(self, "Export Successful", f"Results saved to {filename}")
+            # Si la tabla está vacía → crear una fila con número, fecha y hora actuales
+            if self.table.rowCount() == 0:
+                now = datetime.datetime.now()
+                rows.append({
+                    "#": 1,
+                    "Date": now.strftime("%d/%m/%Y"),
+                    "Time": now.strftime("%H:%M:%S"),
+                    "Inlet (°C)": "",
+                    "Ambient (°C)": "",
+                    "RPM": "",
+                    "Air Flow": "",
+                    "Torque (N·m)": "",
+                    "Pressure (Pa)": ""
+                })
+            else:
+                # Exportar todas las filas de la tabla (aunque tengan celdas vacías)
+                for i in range(self.table.rowCount()):
+                    row = {}
+                    for j, header in enumerate([
+                        "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
+                        "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
+                    ]):
+                        item = self.table.item(i, j)
+                        row[header] = item.text() if item else ""
+                    rows.append(row)
 
-            
+            # Crear DataFrame
+            df_manual = pd.DataFrame(rows)
+
+            # Nombre sugerido con timestamp
+            suggested_name = f"manual_data_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
+            # Abrir diálogo para elegir dónde guardar
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Excel File",
+                suggested_name,
+                "Excel Files (*.xlsx);;All Files (*)"
+            )
+
+            # 🔹 Si el usuario canceló → salir sin mostrar mensajes
+            if not file_path:
+                return
+
+            # Asegurar extensión .xlsx
+            if not file_path.lower().endswith(".xlsx"):
+                file_path += ".xlsx"
+
+            # Guardar archivo
+            df_manual.to_excel(file_path, index=False, engine="openpyxl")
+
+            QMessageBox.information(self, "Export Successful", f"Results saved to:\n{file_path}")
 
         except Exception as e:
-            self.log(f"❌ Export failed: {e}")
             QMessageBox.critical(self, "Export Failed", str(e))
+
+
+
 
     def save_current_data(self):
         """Guarda una nueva fila con los valores actuales en la tabla de datos."""

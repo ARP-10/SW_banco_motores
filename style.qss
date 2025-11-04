@@ -14,7 +14,6 @@ QWidget {
 QGroupBox {
     background-color: #FFFFFF;
     border-radius: 20px;
-    border: 2px solid #C9D6E8;
     padding: 36px 28px 24px 28px;
     font: 600 14pt "Segoe UI";
     margin: 8px 8px;
@@ -157,33 +156,54 @@ QSlider::handle:horizontal {
 /* ============================================================
    🔹 SCROLLBARS
    ============================================================ */
-QScrollBar:vertical {
-    background: #edf2ff;
+/* === SCROLLBARS UNIFICADOS (Horizontal + Vertical) === */
+QScrollBar:horizontal, QScrollBar:vertical {
+    background: #f0f6ff;
     border: none;
-    width: 14px;
-    margin: 6px 4px;
-    border-radius: 7px;
+    border-radius: 6px;
+    margin: 4px;
 }
 
-QScrollBar::handle:vertical {
-    background: #0077b6;
-    border-radius: 7px;
-    min-height: 30px;
-}
-
+/* --- Horizontal --- */
 QScrollBar:horizontal {
-    background: #edf2ff;
-    border: none;
-    height: 14px;
-    margin: 6px;
-    border-radius: 7px;
+    height: 12px;
+    margin: 4px 20px 4px 20px;
 }
 
 QScrollBar::handle:horizontal {
     background: #0077b6;
-    border-radius: 7px;
-    min-width: 30px;
+    border-radius: 6px;
+    min-width: 25px;
 }
+
+/* --- Vertical --- */
+QScrollBar:vertical {
+    width: 12px;
+    margin: 20px 4px 20px 4px;
+}
+
+QScrollBar::handle:vertical {
+    background: #0077b6;
+    border-radius: 6px;
+    min-height: 25px;
+}
+
+/* --- Eliminar las flechas superior e inferior --- */
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    background: none;
+    border: none;
+}
+
+/* --- Hover suave --- */
+QScrollBar::handle:vertical:hover,
+QScrollBar::handle:horizontal:hover {
+    background: #0096d1;
+}
+
+
 
 
 /* === PRUEBAS AUTOMÁTICAS === */
@@ -205,5 +225,4 @@ QGroupBox#group_tests::title {
     background-repeat: no-repeat;
     background-position: left center;
 }
-
 
