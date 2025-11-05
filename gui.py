@@ -355,12 +355,6 @@ class MainWindow(QMainWindow):
         for label, key in mapping.items():
             self.data[label].append(data[key])
         
-        # Actualizar tabla con las lecturas actuales
-        i = 0
-        for label in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
-            self.table.setItem(0, i, QTableWidgetItem(self.lbls[label].text().split(": ")[1]))
-            i += 1
-
 
         # Actualizar curvas activas
         for label, curve in self.curves.items():
