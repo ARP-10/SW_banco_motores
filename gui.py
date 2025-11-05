@@ -2,7 +2,7 @@
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QLabel, QPushButton, QSlider, QTextEdit, QMessageBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog
+    QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QDial
 )
 
 from PyQt6.QtCore import Qt, QTimer
@@ -64,15 +64,49 @@ class MainWindow(QMainWindow):
         self.btn_motor.setFixedHeight(40)
         self.btn_motor.clicked.connect(self.toggle_motor)
 
-        self.slider_brake = QSlider(Qt.Orientation.Horizontal)
-        self.slider_brake.setRange(0, 50)
-        self.slider_brake.setValue(0)
-        self.slider_brake.valueChanged.connect(self.update_brake)
-        self.lbl_brake = QLabel("Brake setpoint (DAC1): 0.0 V")
+        # --- Dial de freno visual (mejorado con estilo Material) ---
+        self.dial_brake = QDial()
+        self.dial_brake.setRange(0, 50)
+        self.dial_brake.setValue(0)
+        self.dial_brake.setNotchesVisible(True)
+        self.dial_brake.setFixedSize(160, 160)
+        self.dial_brake.valueChanged.connect(self.update_brake)
 
+        # --- Etiqueta con valor actual ---
+        self.lbl_brake = QLabel("Brake: 0.0 V")
+        self.lbl_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_brake.setStyleSheet("""
+            QLabel {
+                font-size: 16pt;
+                font-weight: 600;
+                color: #03A9F4;
+            }
+        """)
+
+        # --- Estilo visual del dial (con color dinámico tipo gauge) ---
+        self.dial_brake.setStyleSheet("""
+            QDial {
+                background: qradialgradient(
+                    cx: 0.5, cy: 0.5, fx: 0.5, fy: 0.5,
+                    radius: 0.9,
+                    stop: 0 #1E1E1E,
+                    stop: 0.7 #2C2C2C,
+                    stop: 1 #03A9F4
+                );
+                border: 2px solid #03A9F4;
+                border-radius: 80px;
+            }
+        """)
+
+        v_brake = QVBoxLayout()
+        v_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        v_brake.addWidget(self.lbl_brake)
+        v_brake.addWidget(self.dial_brake)
+
+
+        # --- Motor + freno juntos ---
         v_ctrl.addWidget(self.btn_motor)
-        v_ctrl.addWidget(self.lbl_brake)
-        v_ctrl.addWidget(self.slider_brake)
+        v_ctrl.addLayout(v_brake)
         self.group_control.setLayout(v_ctrl)
 
         # ----- PRUEBAS AUTOMÁTICAS -----
@@ -266,8 +300,32 @@ class MainWindow(QMainWindow):
     def update_brake(self, value):
         voltage = value / 10.0
         self.lj.send_command("set_brake", voltage)
-        self.lbl_brake.setText(f"Brake setpoint (DAC1): {voltage:.1f} V")
+        self.lbl_brake.setText(f"Brake: {voltage:.1f} V")
+
+        # Color dinámico según nivel
+        if value < 15:
+            color = "#4CAF50"  # Verde
+        elif value < 35:
+            color = "#FFC107"  # Amarillo
+        else:
+            color = "#F44336"  # Rojo
+
+        self.dial_brake.setStyleSheet(f"""
+            QDial {{
+                background: qradialgradient(
+                    cx: 0.5, cy: 0.5, fx: 0.5, fy: 0.5,
+                    radius: 0.9,
+                    stop: 0 #1E1E1E,
+                    stop: 0.7 #2C2C2C,
+                    stop: 1 {color}
+                );
+                border: 2px solid {color};
+                border-radius: 80px;
+            }}
+        """)
+
         self.log(f"⚙️ DAC1 updated → {voltage:.1f} V")
+
 
     # =====================================================
     # DATA READING
