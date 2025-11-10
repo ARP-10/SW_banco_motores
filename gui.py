@@ -12,12 +12,9 @@ import time, sys, datetime
 import pandas as pd
 
 
-class SecondaryWindow(QMainWindow):
+class PracticePage(QWidget):
     def __init__(self, lj_interface: LabJackInterface):
         super().__init__()
-        self.setWindowTitle("Practice Window")
-        self.resize(1700, 800)
-
         self.lj = lj_interface
         self.t0 = time.time()
         self.data_x = []
@@ -106,7 +103,7 @@ class SecondaryWindow(QMainWindow):
         left_layout.addWidget(self.group_graph, stretch=3)
 
         # =====================================================
-        # 🔹 PANEL DERECHO: Tabla de datos
+        # 🔹 PANEL DERECHO: Tabla de datos (idéntica a la principal)
         # =====================================================
         right_layout = QVBoxLayout()
         self.group_table = QGroupBox("📋 Saved Measurements")
@@ -123,23 +120,18 @@ class SecondaryWindow(QMainWindow):
         self.table.setAlternatingRowColors(True)
 
         header = self.table.horizontalHeader()
-
-        # --- Ajustes de columnas ---
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(0, 5)
-
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(1, 70)  # Date
+        self.table.setColumnWidth(1, 70)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(2, 70)  # Time
-
+        self.table.setColumnWidth(2, 70)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self.table.setWordWrap(False)
 
-        # --- Estilo visual igual al de la ventana principal ---
         self.table.setStyleSheet("""
             QTableWidget {
                 background-color: #FFFFFF;
@@ -157,9 +149,7 @@ class SecondaryWindow(QMainWindow):
                 border: none;
             }
         """)
-
         v_table.addWidget(self.table)
-
         self.group_table.setLayout(v_table)
         right_layout.addWidget(self.group_table)
 
@@ -167,19 +157,14 @@ class SecondaryWindow(QMainWindow):
         main_layout.addLayout(left_layout, stretch=6)
         main_layout.addLayout(right_layout, stretch=4)
 
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
+        self.setLayout(main_layout)
 
-        # --- Timer para lecturas ---
+        # --- Timer propio de la página ---
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_readings)
         self.timer.start(500)
 
-
-    # =====================================================
-    # FUNCIONES DE LECTURA Y ACTUALIZACIÓN
-    # =====================================================
+    # ====== LÓGICA DE LA PÁGINA ======
     def update_readings(self):
         try:
             data = self.lj.read_sensors()
@@ -205,7 +190,6 @@ class SecondaryWindow(QMainWindow):
             self.lbls[label].setText(f"{label}: {value:.3f}")
             self.data[label].append(value)
 
-        # Actualiza curvas
         for label, curve in self.curves.items():
             if self.checks[label].isChecked():
                 curve.setData(self.data_x, self.data[label])
@@ -219,9 +203,6 @@ class SecondaryWindow(QMainWindow):
             else:
                 curve.clear()
 
-    # =====================================================
-    # GUARDAR Y EXPORTAR DATOS
-    # =====================================================
     def save_current_data(self):
         now = datetime.datetime.now()
         date, hour = now.strftime("%d/%m/%Y"), now.strftime("%H:%M:%S")
@@ -266,6 +247,7 @@ class SecondaryWindow(QMainWindow):
 
 
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -288,287 +270,187 @@ class MainWindow(QMainWindow):
     # UI SETUP
     # =====================================================
     def init_ui(self):
-        # === BARRA SUPERIOR (MENÚ) ===
-        menubar = self.menuBar()
-        menubar.setStyleSheet("""
-            QMenuBar {
+        # === BARRA SUPERIOR PERMANENTE ===
+        self.top_bar = QWidget()
+        self.top_bar.setFixedHeight(45)
+        self.top_bar.setStyleSheet("""
+            QWidget {
                 background-color: #0077b6;
+                border-bottom: 2px solid #005f99;
+            }
+            QPushButton {
+                background-color: transparent;
                 color: white;
-                font: 600 10pt "Segoe UI";
+                font: 600 11pt "Segoe UI";
+                padding: 6px 20px;
+                border: none;
             }
-            QMenuBar::item:selected {
-                background: #0096c7;
+            QPushButton:hover {
+                background-color: #0096c7;
             }
-            QMenu {
-                background-color: #FFFFFF;
-                font: 10pt "Segoe UI";
-            }
-            QMenu::item:selected {
-                background-color: #E0F0FF;
-                color: #000000;
+            QPushButton:pressed {
+                background-color: #00b4d8;
             }
         """)
 
-        # --- Crear menú principal tipo pestaña ---
-        menu_practice = menubar.addMenu("🧩 Practice")
+        # --- Botones Home y Practice ---
+        self.btn_home = QPushButton("🏠 Home")
+        self.btn_practice = QPushButton("🧩 Practice")
+        self.btn_home.clicked.connect(self.back_to_home_view)
+        self.btn_practice.clicked.connect(self.open_practice_view)
 
-        # --- Acción dentro del menú ---
-        action_open_practice = menu_practice.addAction("Open Practice Window")
-        action_open_practice.triggered.connect(self.open_new_window)
-        
+        bar_layout = QHBoxLayout()
+        bar_layout.setContentsMargins(10, 0, 0, 0)
+        bar_layout.setSpacing(0)  # 🔹 Pegados
+        bar_layout.addWidget(self.btn_home)
+        bar_layout.addWidget(self.btn_practice)
+        bar_layout.addStretch()  # 🔹 Empuja todo a la izquierda
+        self.top_bar.setLayout(bar_layout)
+
+        # === CONTENEDOR CAMBIANTE (área de contenido) ===
+        self.content_container = QWidget()
+        self.home_view = self.create_home_view()   # Creamos la vista Home como función aparte
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.addWidget(self.home_view)
+        self.content_container.setLayout(self.content_layout)
+
+        # === Layout global (barra + contenido) ===
+        global_layout = QVBoxLayout()
+        global_layout.setContentsMargins(0, 0, 0, 0)
+        global_layout.setSpacing(0)
+        global_layout.addWidget(self.top_bar)
+        global_layout.addWidget(self.content_container)
+
+        container = QWidget()
+        container.setLayout(global_layout)
+        self.setCentralWidget(container)
+
+        # --- Timer general ---
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_readings)
+        self.timer.start(500)
+
+
+    def create_home_view(self):
+        """Crea la vista principal (Home) y la devuelve como QWidget."""
         main_layout = QHBoxLayout()
-
-        # === Left panel (measurements, control, graph) ===
         left_layout = QVBoxLayout()
 
-        # --- Top: measurements + control ---
-        top_layout = QHBoxLayout()
-
-        # ----- Measurements -----
+        # --- Medidas ---
         self.group_meas = QGroupBox("📊 Real-Time Measurements")
-        self.group_meas.setObjectName("group_lecturas")
-
-        grid = QVBoxLayout()
+        v_meas = QVBoxLayout()
         self.lbls = {}
         for name in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
             lbl = QLabel(f"{name}: —")
             lbl.setStyleSheet("font-weight: 600; font-size: 13pt; color: #FFFFFF;")
-            grid.addWidget(lbl)
+            v_meas.addWidget(lbl)
             self.lbls[name] = lbl
-        self.group_meas.setLayout(grid)
+        self.group_meas.setLayout(v_meas)
 
-        # ----- CONTROL DEL EQUIPO -----
+        # --- Control del equipo ---
         self.group_control = QGroupBox("⚙️ Equipment Control")
-        self.group_control.setObjectName("group_control")
         v_ctrl = QVBoxLayout()
-
         self.btn_motor = QPushButton("🔴 Motor OFF")
-        self.btn_motor.setFixedHeight(40)
         self.btn_motor.clicked.connect(self.toggle_motor)
-
-        # --- Dial de freno visual (mejorado con estilo Material) ---
         self.dial_brake = QDial()
         self.dial_brake.setRange(0, 50)
-        self.dial_brake.setValue(0)
-        self.dial_brake.setNotchesVisible(True)
-        self.dial_brake.setFixedSize(160, 160)
         self.dial_brake.valueChanged.connect(self.update_brake)
-
-        # --- Etiqueta con valor actual ---
         self.lbl_brake = QLabel("Brake: 0.0 V")
         self.lbl_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_brake.setStyleSheet("""
-            QLabel {
-                font-size: 16pt;
-                font-weight: 600;
-                color: #03A9F4;
-            }
-        """)
-
-        # --- Estilo visual del dial (con color dinámico tipo gauge) ---
-        self.dial_brake.setStyleSheet("""
-            QDial {
-                background: qradialgradient(
-                    cx: 0.5, cy: 0.5, fx: 0.5, fy: 0.5,
-                    radius: 0.9,
-                    stop: 0 #1E1E1E,
-                    stop: 0.7 #2C2C2C,
-                    stop: 1 #03A9F4
-                );
-                border: 2px solid #03A9F4;
-                border-radius: 80px;
-            }
-        """)
-
-        v_brake = QVBoxLayout()
-        v_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v_brake.addWidget(self.lbl_brake)
-        v_brake.addWidget(self.dial_brake)
-
-
-        # --- Motor + freno juntos ---
         v_ctrl.addWidget(self.btn_motor)
-        v_ctrl.addLayout(v_brake)
+        v_ctrl.addWidget(self.lbl_brake)
+        v_ctrl.addWidget(self.dial_brake)
         self.group_control.setLayout(v_ctrl)
 
-        # ----- PRUEBAS AUTOMÁTICAS -----
+        # --- Panel de pruebas ---
         self.group_tests = QGroupBox("🧪 Control Panel")
-        self.group_tests.setObjectName("group_tests")
         v_tests = QVBoxLayout()
-
         self.btn_auto = QPushButton("🤖 Start Automatic Test")
         self.btn_auto.clicked.connect(self.start_auto_test)
-
         self.btn_stop_auto = QPushButton("⏹ Stop Test")
         self.btn_stop_auto.clicked.connect(self.stop_auto_test)
         self.btn_stop_auto.setEnabled(False)
-
-        self.btn_export = QPushButton("💾 Export Results")
-        self.btn_export.clicked.connect(self.export_results)
-        self.btn_export.setEnabled(True)
-
         self.btn_save = QPushButton("💾 Save Current Data")
         self.btn_save.clicked.connect(self.save_current_data)
-
-        v_tests.addWidget(self.btn_auto)
-        v_tests.addWidget(self.btn_stop_auto)
-        v_tests.addWidget(self.btn_save)
-        v_tests.addWidget(self.btn_export)
-
+        self.btn_export = QPushButton("📤 Export Results")
+        self.btn_export.clicked.connect(self.export_results)
+        for b in [self.btn_auto, self.btn_stop_auto, self.btn_save, self.btn_export]:
+            v_tests.addWidget(b)
         self.group_tests.setLayout(v_tests)
 
+        top_row = QHBoxLayout()
+        top_row.addWidget(self.group_meas)
+        top_row.addWidget(self.group_control)
+        top_row.addWidget(self.group_tests)
+        left_layout.addLayout(top_row)
 
-        # --- Fila superior: medidas + control + pruebas ---
-        top_layout.addWidget(self.group_meas, stretch=2)
-        top_layout.addWidget(self.group_control, stretch=2)
-        top_layout.addWidget(self.group_tests, stretch=2)
-        left_layout.addLayout(top_layout)
-        left_layout.addSpacing(10)
-
-
-
-        # === Graph ===
+        # --- Gráfica ---
         self.group_graph = QGroupBox("📈 Real-Time Graph")
-        v_graph = QHBoxLayout()  # ← horizontal para añadir leyenda a la derecha
-
-        # --- Plot ---
+        v_graph = QHBoxLayout()
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#FFFFFF")
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setLabel("left", "Magnitude", color="#000")
-        self.plot_widget.setLabel("bottom", "Time (s)", color="#000")
-
-        # --- Curves (6 signals) ---
-        self.curves = {
-            "Inlet Temp": self.plot_widget.plot(pen=pg.mkPen("#3498DB", width=2)),
-            "Ambient Temp": self.plot_widget.plot(pen=pg.mkPen("#9B59B6", width=2)),
-            "RPM": self.plot_widget.plot(pen=pg.mkPen("#F39C12", width=2)),
-            "Air Flow": self.plot_widget.plot(pen=pg.mkPen("#27AE60", width=2)),
-            "Torque": self.plot_widget.plot(pen=pg.mkPen("#E74C3C", width=2)),
-            "Pressure": self.plot_widget.plot(pen=pg.mkPen("#2C3E50", width=2)),
-        }
-
-        # --- Legend panel with checkboxes ---
-        legend_layout = QVBoxLayout()
-        legend_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        legend_layout.setSpacing(6)
-
-        self.checks = {}
-        for name, color in zip(
-            self.curves.keys(),
-            ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
-        ):
-            cb = pg.QtWidgets.QCheckBox(name)
-            cb.setChecked(True)
-            cb.setStyleSheet(f"color: {color}; font-weight: 600; font-size: 10pt;")
-            cb.stateChanged.connect(self.update_curve_visibility)
-            self.checks[name] = cb
-            legend_layout.addWidget(cb)
-
-        # --- Combine plot + legend ---
-        v_graph.addWidget(self.plot_widget, stretch=4)
-        legend_widget = QWidget()
-        legend_widget.setLayout(legend_layout)
-        v_graph.addWidget(legend_widget, stretch=1)
+        self.plot_widget.showGrid(x=True, y=True)
+        self.plot_widget.setLabel("left", "Magnitude")
+        self.plot_widget.setLabel("bottom", "Time (s)")
+        self.curves = {name: self.plot_widget.plot(pen=pg.mkPen(color, width=2))
+                       for name, color in zip(
+                           ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"],
+                           ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
+                       )}
+        v_graph.addWidget(self.plot_widget)
         self.group_graph.setLayout(v_graph)
         left_layout.addWidget(self.group_graph)
 
-        # === Data storage ===
-        self.data_x = []
-        self.data = {key: [] for key in self.curves.keys()}
-
-        # === Right panel: Saved Data + Logs ===
         right_layout = QVBoxLayout()
-
-        # =====================================================
-        # 🧮 TABLA DE DATOS GUARDADOS (como en it032_gui.py)
-        # =====================================================
         self.group_table = QGroupBox("📋 Saved Measurements")
-        self.group_table.setObjectName("group_tabla")
-
-        self.table = QTableWidget()
-        self.table.setColumnCount(9)
+        v_table = QVBoxLayout()
+        self.table = QTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels([
             "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
             "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
         ])
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-
-        header = self.table.horizontalHeader()
-
-        # Columna #
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(0, 5)
-
-        # Columnas Date y Time más estrechas
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(1, 70)  # Date
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(2, 70)   # Time
-
-       # === Ajuste de columnas con scroll ===
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
-        self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
-        self.table.setWordWrap(False)
-
-
-
-
-        # --- Estilo visual coherente con DIKOIN UI ---
-        self.table.setStyleSheet("""
-            QTableWidget {
-                background-color: #FFFFFF;
-                border: none;
-                alternate-background-color: #F3F7FB;
-                selection-background-color: #E0F0FF;
-                font-size: 10pt;
-                box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.08);
-            }
-            QHeaderView::section {
-                background: #0077b6;
-                color: #FFFFFF;
-                font: 600 10.5pt "Segoe UI";
-                padding: 8px 6px;
-                border: none;
-            }
-        """)
-
-        v_table = QVBoxLayout()
         v_table.addWidget(self.table)
         self.group_table.setLayout(v_table)
         right_layout.addWidget(self.group_table)
 
-        # =====================================================
-        # 🧾 SYSTEM LOGS
-        # =====================================================
-        self.group_logs = QGroupBox("System Logs")
-        self.group_logs.setObjectName("group_logs")
-        v_logs = QVBoxLayout()
-        self.txt_logs = QTextEdit()
-        self.txt_logs.setReadOnly(True)
-        v_logs.addWidget(self.txt_logs)
-        self.group_logs.setLayout(v_logs)
-        right_layout.addWidget(self.group_logs)
+        main_layout.addLayout(left_layout, 6)
+        main_layout.addLayout(right_layout, 4)
 
-        # === Combine layouts ===
-        main_layout.addLayout(left_layout, stretch=6)
-        main_layout.addLayout(right_layout, stretch=4)
-
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.setCentralWidget(container)
+        widget = QWidget()
+        widget.setLayout(main_layout)
+        return widget
 
 
+    def open_practice_view(self):
+        if hasattr(self, "timer"):
+            self.timer.stop()
 
-        self.data_x, self.data_rpm, self.data_torque = [], [], []
+        self.practice_page = PracticePage(self.lj)
+        self.practice_page.setStyleSheet(self.styleSheet())
 
-    def open_new_window(self):
-        self.new_window = SecondaryWindow(self.lj)
-        self.new_window.setStyleSheet(self.styleSheet())
-        self.new_window.show()
+        # Reemplazar el contenido de la zona central (no toda la ventana)
+        for i in reversed(range(self.content_layout.count())):
+            w = self.content_layout.takeAt(i).widget()
+            if w:
+                w.setParent(None)
+        self.content_layout.addWidget(self.practice_page)
+
+
+    def back_to_home_view(self):
+        if hasattr(self, "practice_page") and hasattr(self.practice_page, "timer"):
+            self.practice_page.timer.stop()
+            self.practice_page.deleteLater()
+            del self.practice_page
+
+        for i in reversed(range(self.content_layout.count())):
+            w = self.content_layout.takeAt(i).widget()
+            if w:
+                w.setParent(None)
+        self.content_layout.addWidget(self.home_view)
+        if hasattr(self, "timer"):
+            self.timer.start(500)
+
 
 
     # =====================================================
