@@ -10,11 +10,102 @@ from labjack_interface import LabJackInterface
 import pyqtgraph as pg
 import time, sys, datetime
 import pandas as pd
+from PyQt6.QtGui import QPainter, QPen, QFont, QLinearGradient, QRadialGradient, QColor
+from PyQt6.QtCore import Qt, QPointF, QRectF
+import math
 
 import requests  # asegúrate de tenerlo instalado: pip install requests
 
 API_BASE_URL = "http://127.0.0.1:8000/api"  # cambia por tu IP o dominio real
 MACHINE_ID = 2
+
+from PyQt6.QtGui import QPainter, QPen, QFont
+from PyQt6.QtCore import QPointF, QRectF, Qt
+import math
+
+class RPMAguja(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 0
+        self._max_value = 3600
+        self.setMinimumSize(280, 280)
+        self._bg_color = QColor("#f0f0f0")
+
+    def setValue(self, value):
+        self._value = max(0, min(value, self._max_value))
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = self.rect()
+        center = QPointF(rect.center())
+        radius = float(min(rect.width(), rect.height()) / 2 - 10)
+
+        # --- Fondo con degradado metálico ---
+        gradient = QRadialGradient(center, radius)
+        gradient.setColorAt(0, QColor("#fafafa"))
+        gradient.setColorAt(1, QColor("#c0c0c0"))
+        painter.setBrush(gradient)
+        painter.setPen(QPen(QColor("#b0b0b0"), 3))
+        painter.drawEllipse(center, radius, radius)
+
+        # --- Anillo interior ---
+        painter.setBrush(Qt.GlobalColor.white)
+        painter.setPen(QPen(QColor("#999999"), 1))
+        painter.drawEllipse(center, radius * 0.85, radius * 0.85)
+
+        # --- Marcas principales ---
+        painter.setPen(QPen(Qt.GlobalColor.black, 2))
+        steps = 36  # 0–3600 cada 100
+        for i in range(steps + 1):
+            angle = 225 - (270 / steps) * i
+            x1 = center.x() + math.cos(math.radians(angle)) * (radius * 0.82)
+            y1 = center.y() - math.sin(math.radians(angle)) * (radius * 0.82)
+            x2 = center.x() + math.cos(math.radians(angle)) * (radius * 0.9)
+            y2 = center.y() - math.sin(math.radians(angle)) * (radius * 0.9)
+            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # --- Marcas menores ---
+        painter.setPen(QPen(Qt.GlobalColor.black, 1))
+        for i in range(0, 37 * 5):
+            angle = 225 - (270 / (steps * 5)) * i
+            x1 = center.x() + math.cos(math.radians(angle)) * (radius * 0.86)
+            y1 = center.y() - math.sin(math.radians(angle)) * (radius * 0.86)
+            x2 = center.x() + math.cos(math.radians(angle)) * (radius * 0.9)
+            y2 = center.y() - math.sin(math.radians(angle)) * (radius * 0.9)
+            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # --- Números ---
+        painter.setPen(Qt.GlobalColor.black)
+        font = QFont("Segoe UI", 8)
+        painter.setFont(font)
+        for i in range(0, 3700, 200):
+            angle = 225 - (270 * (i / self._max_value))
+            tx = center.x() + math.cos(math.radians(angle)) * (radius * 0.7)
+            ty = center.y() - math.sin(math.radians(angle)) * (radius * 0.7)
+            painter.drawText(QRectF(tx - 15, ty - 10, 30, 20),
+                             Qt.AlignmentFlag.AlignCenter, str(i))
+
+        # --- Aguja ---
+        angle = 225 - (self._value / self._max_value) * 270
+        needle_length = radius * 0.8
+        painter.setPen(QPen(Qt.GlobalColor.red, 3))
+        painter.drawLine(
+            center,
+            QPointF(
+                center.x() + math.cos(math.radians(angle)) * needle_length,
+                center.y() - math.sin(math.radians(angle)) * needle_length
+            )
+        )
+
+        # --- Centro del eje ---
+        painter.setBrush(QColor("#444"))
+        painter.setPen(QPen(QColor("#222"), 1))
+        painter.drawEllipse(center, 6, 6)
+
+        painter.end()
 
 
 class PracticePage(QWidget):
@@ -403,17 +494,21 @@ class MainWindow(QMainWindow):
         # --- Tacómetro (Dial visual para RPM) ---
         self.group_rpm = QGroupBox("🧭 RPM Gauge")
         v_rpm = QVBoxLayout()
-        self.rpm_dial = QDial()
-        self.rpm_dial.setRange(0, 3600)
-        self.rpm_dial.setNotchesVisible(True)
-        self.rpm_dial.setWrapping(False)
-        self.rpm_dial.setEnabled(False)
-        self.rpm_dial.setFixedSize(200, 200)
+        self.rpm_gauge = RPMAguja()
         self.lbl_rpm_value = QLabel("0 RPM")
         self.lbl_rpm_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_rpm_value.setStyleSheet("font-weight: 700; font-size: 13pt; color: #000;")
-        v_rpm.addWidget(self.rpm_dial, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.lbl_rpm_value.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 10px;
+            padding: 6px 10px;
+            color: #000000;
+            font-weight: 700;
+            font-size: 13pt;
+        """)
+
+        v_rpm.addWidget(self.rpm_gauge, alignment=Qt.AlignmentFlag.AlignCenter)
         v_rpm.addWidget(self.lbl_rpm_value)
+
         self.group_rpm.setLayout(v_rpm)
         top_row.addWidget(self.group_rpm, 3)
 
@@ -670,7 +765,7 @@ class MainWindow(QMainWindow):
             else:
                 curve.clear()
 
-        self.rpm_dial.setValue(int(data["RPM"]))
+        self.rpm_gauge.setValue(data["RPM"])
         self.lbl_rpm_value.setText(f"{data['RPM']:.0f} RPM")
 
         # --- Guardar localmente para envío posterior ---
