@@ -12,6 +12,260 @@ import time, sys, datetime
 import pandas as pd
 
 
+class SecondaryWindow(QMainWindow):
+    def __init__(self, lj_interface: LabJackInterface):
+        super().__init__()
+        self.setWindowTitle("Practice Window")
+        self.resize(1700, 800)
+
+        self.lj = lj_interface
+        self.t0 = time.time()
+        self.data_x = []
+        self.data = {key: [] for key in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]}
+
+        # === Layout principal ===
+        main_layout = QHBoxLayout()
+
+        # =====================================================
+        # 🔹 PANEL IZQUIERDO: Medidas + Control + Gráfica
+        # =====================================================
+        left_layout = QVBoxLayout()
+
+        # --- Fila superior: Medidas y Control ---
+        top_row = QHBoxLayout()
+
+        # === Medidas en tiempo real ===
+        self.group_meas = QGroupBox("📊 Real-Time Measurements")
+        self.group_meas.setObjectName("group_lecturas")
+        v_meas = QVBoxLayout()
+        self.lbls = {}
+        for name in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
+            lbl = QLabel(f"{name}: —")
+            lbl.setStyleSheet("font-weight: 600; font-size: 13pt; color: #FFFFFF;")
+            v_meas.addWidget(lbl)
+            self.lbls[name] = lbl
+        self.group_meas.setLayout(v_meas)
+        top_row.addWidget(self.group_meas, stretch=2)
+
+        # === Panel de control de datos ===
+        self.group_tests = QGroupBox("🧪 Data Control")
+        self.group_tests.setObjectName("group_tests")
+        v_btns = QVBoxLayout()
+        self.btn_save = QPushButton("💾 Save Current Data")
+        self.btn_save.clicked.connect(self.save_current_data)
+        self.btn_export = QPushButton("📤 Export to Excel")
+        self.btn_export.clicked.connect(self.export_results)
+        v_btns.addWidget(self.btn_save)
+        v_btns.addWidget(self.btn_export)
+        self.group_tests.setLayout(v_btns)
+        top_row.addWidget(self.group_tests, stretch=2)
+
+        left_layout.addLayout(top_row)
+        left_layout.addSpacing(10)
+
+        # === Gráfica debajo ===
+        self.group_graph = QGroupBox("📈 Real-Time Graph")
+        self.group_graph.setObjectName("group_grafica")
+        v_graph = QHBoxLayout()
+
+        self.plot_widget = pg.PlotWidget()
+        self.plot_widget.setBackground("#FFFFFF")
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_widget.setLabel("left", "Magnitude", color="#000")
+        self.plot_widget.setLabel("bottom", "Time (s)", color="#000")
+
+        self.curves = {
+            "Inlet Temp": self.plot_widget.plot(pen=pg.mkPen("#3498DB", width=2)),
+            "Ambient Temp": self.plot_widget.plot(pen=pg.mkPen("#9B59B6", width=2)),
+            "RPM": self.plot_widget.plot(pen=pg.mkPen("#F39C12", width=2)),
+            "Air Flow": self.plot_widget.plot(pen=pg.mkPen("#27AE60", width=2)),
+            "Torque": self.plot_widget.plot(pen=pg.mkPen("#E74C3C", width=2)),
+            "Pressure": self.plot_widget.plot(pen=pg.mkPen("#2C3E50", width=2)),
+        }
+
+        legend_layout = QVBoxLayout()
+        legend_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        legend_layout.setSpacing(6)
+        self.checks = {}
+        for name, color in zip(
+            self.curves.keys(),
+            ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
+        ):
+            cb = pg.QtWidgets.QCheckBox(name)
+            cb.setChecked(True)
+            cb.setStyleSheet(f"color: {color}; font-weight: 600; font-size: 10pt;")
+            cb.stateChanged.connect(self.update_curve_visibility)
+            self.checks[name] = cb
+            legend_layout.addWidget(cb)
+        legend_widget = QWidget()
+        legend_widget.setLayout(legend_layout)
+
+        v_graph.addWidget(self.plot_widget, stretch=4)
+        v_graph.addWidget(legend_widget, stretch=1)
+        self.group_graph.setLayout(v_graph)
+        left_layout.addWidget(self.group_graph, stretch=3)
+
+        # =====================================================
+        # 🔹 PANEL DERECHO: Tabla de datos
+        # =====================================================
+        right_layout = QVBoxLayout()
+        self.group_table = QGroupBox("📋 Saved Measurements")
+        self.group_table.setObjectName("group_tabla")
+
+        v_table = QVBoxLayout()
+        self.table = QTableWidget()
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels([
+            "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
+            "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
+        ])
+        self.table.verticalHeader().setVisible(False)
+        self.table.setAlternatingRowColors(True)
+
+        header = self.table.horizontalHeader()
+
+        # --- Ajustes de columnas ---
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 5)
+
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(1, 70)  # Date
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(2, 70)  # Time
+
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setWordWrap(False)
+
+        # --- Estilo visual igual al de la ventana principal ---
+        self.table.setStyleSheet("""
+            QTableWidget {
+                background-color: #FFFFFF;
+                border: none;
+                alternate-background-color: #F3F7FB;
+                selection-background-color: #E0F0FF;
+                font-size: 10pt;
+                box-shadow: 0px 6px 16px rgba(0, 0, 0, 0.08);
+            }
+            QHeaderView::section {
+                background: #0077b6;
+                color: #FFFFFF;
+                font: 600 10.5pt "Segoe UI";
+                padding: 8px 6px;
+                border: none;
+            }
+        """)
+
+        v_table.addWidget(self.table)
+
+        self.group_table.setLayout(v_table)
+        right_layout.addWidget(self.group_table)
+
+        # === Combinar layout principal ===
+        main_layout.addLayout(left_layout, stretch=6)
+        main_layout.addLayout(right_layout, stretch=4)
+
+        container = QWidget()
+        container.setLayout(main_layout)
+        self.setCentralWidget(container)
+
+        # --- Timer para lecturas ---
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_readings)
+        self.timer.start(500)
+
+
+    # =====================================================
+    # FUNCIONES DE LECTURA Y ACTUALIZACIÓN
+    # =====================================================
+    def update_readings(self):
+        try:
+            data = self.lj.read_sensors()
+        except Exception:
+            return
+        if not data:
+            return
+
+        mapping = {
+            "Inlet Temp": "Tentrada",
+            "Ambient Temp": "Tambiente",
+            "RPM": "RPM",
+            "Air Flow": "Caudal",
+            "Torque": "Par",
+            "Pressure": "Presion"
+        }
+
+        t = time.time() - self.t0
+        self.data_x.append(t)
+
+        for label, key in mapping.items():
+            value = data[key]
+            self.lbls[label].setText(f"{label}: {value:.3f}")
+            self.data[label].append(value)
+
+        # Actualiza curvas
+        for label, curve in self.curves.items():
+            if self.checks[label].isChecked():
+                curve.setData(self.data_x, self.data[label])
+            else:
+                curve.clear()
+
+    def update_curve_visibility(self):
+        for name, curve in self.curves.items():
+            if self.checks[name].isChecked():
+                curve.setData(self.data_x, self.data[name])
+            else:
+                curve.clear()
+
+    # =====================================================
+    # GUARDAR Y EXPORTAR DATOS
+    # =====================================================
+    def save_current_data(self):
+        now = datetime.datetime.now()
+        date, hour = now.strftime("%d/%m/%Y"), now.strftime("%H:%M:%S")
+        values = [lbl.text().split(": ")[1] for lbl in self.lbls.values()]
+
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        self.table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
+        self.table.setItem(row, 1, QTableWidgetItem(date))
+        self.table.setItem(row, 2, QTableWidgetItem(hour))
+        for j, val in enumerate(values):
+            item = QTableWidgetItem(val)
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row, j + 3, item)
+
+    def export_results(self):
+        rows = []
+        for i in range(self.table.rowCount()):
+            row = {}
+            for j, header in enumerate([
+                "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
+                "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
+            ]):
+                item = self.table.item(i, j)
+                row[header] = item.text() if item else ""
+            rows.append(row)
+        if not rows:
+            QMessageBox.warning(self, "No data", "There is no data to export.")
+            return
+
+        df = pd.DataFrame(rows)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Save Excel File", "practice_data.xlsx", "Excel Files (*.xlsx)"
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".xlsx"):
+            file_path += ".xlsx"
+        df.to_excel(file_path, index=False, engine="openpyxl")
+        QMessageBox.information(self, "Export Successful", f"File saved at:\n{file_path}")
+
+
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -34,6 +288,34 @@ class MainWindow(QMainWindow):
     # UI SETUP
     # =====================================================
     def init_ui(self):
+        # === BARRA SUPERIOR (MENÚ) ===
+        menubar = self.menuBar()
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background-color: #0077b6;
+                color: white;
+                font: 600 10pt "Segoe UI";
+            }
+            QMenuBar::item:selected {
+                background: #0096c7;
+            }
+            QMenu {
+                background-color: #FFFFFF;
+                font: 10pt "Segoe UI";
+            }
+            QMenu::item:selected {
+                background-color: #E0F0FF;
+                color: #000000;
+            }
+        """)
+
+        # --- Crear menú principal tipo pestaña ---
+        menu_practice = menubar.addMenu("🧩 Practice")
+
+        # --- Acción dentro del menú ---
+        action_open_practice = menu_practice.addAction("Open Practice Window")
+        action_open_practice.triggered.connect(self.open_new_window)
+        
         main_layout = QHBoxLayout()
 
         # === Left panel (measurements, control, graph) ===
@@ -282,6 +564,12 @@ class MainWindow(QMainWindow):
 
 
         self.data_x, self.data_rpm, self.data_torque = [], [], []
+
+    def open_new_window(self):
+        self.new_window = SecondaryWindow(self.lj)
+        self.new_window.setStyleSheet(self.styleSheet())
+        self.new_window.show()
+
 
     # =====================================================
     # CONTROL FUNCTIONS
