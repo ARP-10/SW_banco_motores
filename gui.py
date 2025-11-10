@@ -11,6 +11,11 @@ import pyqtgraph as pg
 import time, sys, datetime
 import pandas as pd
 
+import requests  # asegúrate de tenerlo instalado: pip install requests
+
+API_BASE_URL = "http://127.0.0.1:8000/api"  # cambia por tu IP o dominio real
+MACHINE_ID = 2
+
 
 class PracticePage(QWidget):
     def __init__(self, lj_interface: LabJackInterface):
@@ -255,11 +260,18 @@ class MainWindow(QMainWindow):
         self.resize(1700, 800)
 
         self.lj = LabJackInterface()
+
+        # --- Configuración API ---
+        self.run_id = None
+        self.local_results = []
+
         self.motor_on = False
         self.t0 = time.time()
 
         # --- UI setup ---
         self.init_ui()
+
+        self.start_run_on_server()
 
         # --- Timer for real-time readings ---
         self.timer = QTimer()
@@ -268,6 +280,22 @@ class MainWindow(QMainWindow):
 
         self.data_x = []
         self.data = {key: [] for key in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]}
+
+
+    def start_run_on_server(self):
+        """Crea un registro de ejecución (run) en el servidor."""
+        try:
+            response = requests.post(f"{API_BASE_URL}/runs/start", json={
+                "machine_id": MACHINE_ID,
+                "app_version": "1.0.0"
+            })
+            if response.status_code == 201:
+                self.run_id = response.json().get("run_id")
+                self.log(f"✅ Run iniciado en el servidor: {self.run_id}")
+            else:
+                self.log(f"⚠️ Error al crear run: {response.text}")
+        except Exception as e:
+            self.log(f"❌ Error de conexión a la API: {e}")
 
 
     # =====================================================
@@ -628,6 +656,20 @@ class MainWindow(QMainWindow):
         self.rpm_dial.setValue(int(data["RPM"]))
         self.lbl_rpm_value.setText(f"{data['RPM']:.0f} RPM")
 
+        # --- Guardar localmente para envío posterior ---
+        if self.run_id:
+            self.local_results.append({
+                "timestamp": datetime.datetime.utcnow().isoformat(),
+                "metrics": {
+                    "Inlet_Temp": data["Tentrada"],
+                    "Ambient_Temp": data["Tambiente"],
+                    "RPM": data["RPM"],
+                    "Air_Flow": data["Caudal"],
+                    "Torque": data["Par"],
+                    "Pressure": data["Presion"]
+                }
+            })
+
 
     def update_curve_visibility(self):
         """Show/hide curves when checkboxes are toggled"""
@@ -771,8 +813,31 @@ class MainWindow(QMainWindow):
 
     # =====================================================
     def closeEvent(self, event):
+        """Cerrar conexión con LabJack y enviar datos a la API."""
         self.lj.close()
+
+        # --- Enviar datos a la API ---
+        if self.run_id and self.local_results:
+            try:
+                payload = {"run_id": self.run_id, "results": self.local_results}
+                self.log(f"📡 Enviando {len(self.local_results)} resultados al servidor...")
+                response = requests.post(f"{API_BASE_URL}/results/bulk", json=payload, timeout=10)
+                if response.status_code == 201:
+                    self.log("✅ Resultados enviados correctamente.")
+                else:
+                    self.log(f"⚠️ Error al enviar resultados: {response.status_code} {response.text}")
+            except Exception as e:
+                self.log(f"❌ Falló el envío a la API: {e}")
+
+            # Cerrar el run en la API
+            try:
+                requests.post(f"{API_BASE_URL}/runs/{self.run_id}/end")
+                self.log("🧾 Run cerrado correctamente en el servidor.")
+            except Exception as e:
+                self.log(f"⚠️ No se pudo cerrar el run: {e}")
+
         event.accept()
+
 
     # =====================================================
     # EXPORT DATA
