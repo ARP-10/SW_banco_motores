@@ -266,6 +266,10 @@ class MainWindow(QMainWindow):
         self.timer.timeout.connect(self.update_readings)
         self.timer.start(500)
 
+        self.data_x = []
+        self.data = {key: [] for key in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]}
+
+
     # =====================================================
     # UI SETUP
     # =====================================================
@@ -334,11 +338,14 @@ class MainWindow(QMainWindow):
 
     def create_home_view(self):
         """Crea la vista principal (Home) y la devuelve como QWidget."""
-        main_layout = QHBoxLayout()
-        left_layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
 
-        # --- Medidas ---
+        # === FILA SUPERIOR ===
+        top_row = QHBoxLayout()
+
+        # --- Grupo de medidas ---
         self.group_meas = QGroupBox("📊 Real-Time Measurements")
+        self.group_meas.setObjectName("group_lecturas")
         v_meas = QVBoxLayout()
         self.lbls = {}
         for name in ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"]:
@@ -347,79 +354,164 @@ class MainWindow(QMainWindow):
             v_meas.addWidget(lbl)
             self.lbls[name] = lbl
         self.group_meas.setLayout(v_meas)
+        top_row.addWidget(self.group_meas, 2)
 
         # --- Control del equipo ---
         self.group_control = QGroupBox("⚙️ Equipment Control")
         v_ctrl = QVBoxLayout()
         self.btn_motor = QPushButton("🔴 Motor OFF")
         self.btn_motor.clicked.connect(self.toggle_motor)
-        self.dial_brake = QDial()
-        self.dial_brake.setRange(0, 50)
-        self.dial_brake.valueChanged.connect(self.update_brake)
-        self.lbl_brake = QLabel("Brake: 0.0 V")
-        self.lbl_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        v_ctrl.addWidget(self.btn_motor)
-        v_ctrl.addWidget(self.lbl_brake)
-        v_ctrl.addWidget(self.dial_brake)
-        self.group_control.setLayout(v_ctrl)
-
-        # --- Panel de pruebas ---
-        self.group_tests = QGroupBox("🧪 Control Panel")
-        v_tests = QVBoxLayout()
         self.btn_auto = QPushButton("🤖 Start Automatic Test")
         self.btn_auto.clicked.connect(self.start_auto_test)
         self.btn_stop_auto = QPushButton("⏹ Stop Test")
         self.btn_stop_auto.clicked.connect(self.stop_auto_test)
         self.btn_stop_auto.setEnabled(False)
-        self.btn_save = QPushButton("💾 Save Current Data")
-        self.btn_save.clicked.connect(self.save_current_data)
-        self.btn_export = QPushButton("📤 Export Results")
-        self.btn_export.clicked.connect(self.export_results)
-        for b in [self.btn_auto, self.btn_stop_auto, self.btn_save, self.btn_export]:
-            v_tests.addWidget(b)
-        self.group_tests.setLayout(v_tests)
+        v_ctrl.addWidget(self.btn_motor)
+        v_ctrl.addWidget(self.btn_auto)
+        v_ctrl.addWidget(self.btn_stop_auto)
+        self.group_control.setLayout(v_ctrl)
+        top_row.addWidget(self.group_control, 2)
 
-        top_row = QHBoxLayout()
-        top_row.addWidget(self.group_meas)
-        top_row.addWidget(self.group_control)
-        top_row.addWidget(self.group_tests)
-        left_layout.addLayout(top_row)
+        # --- Tacómetro (Dial visual para RPM) ---
+        self.group_rpm = QGroupBox("🧭 RPM Gauge")
+        v_rpm = QVBoxLayout()
+        self.rpm_dial = QDial()
+        self.rpm_dial.setRange(0, 3600)
+        self.rpm_dial.setNotchesVisible(True)
+        self.rpm_dial.setWrapping(False)
+        self.rpm_dial.setEnabled(False)
+        self.rpm_dial.setFixedSize(200, 200)
+        self.lbl_rpm_value = QLabel("0 RPM")
+        self.lbl_rpm_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_rpm_value.setStyleSheet("font-weight: 700; font-size: 13pt; color: #000;")
+        v_rpm.addWidget(self.rpm_dial, alignment=Qt.AlignmentFlag.AlignCenter)
+        v_rpm.addWidget(self.lbl_rpm_value)
+        self.group_rpm.setLayout(v_rpm)
+        top_row.addWidget(self.group_rpm, 3)
+
+        # --- Barra vertical de freno ---
+        self.group_brake = QGroupBox("🧱 Brake Control")
+        self.group_brake.setObjectName("group_brake")
+        v_brake = QVBoxLayout()
+
+        # --- Slider vertical con estilo visual mejorado ---
+        self.slider_brake = QSlider(Qt.Orientation.Vertical)
+        self.slider_brake.setRange(0, 50)
+        self.slider_brake.setValue(0)
+        self.slider_brake.valueChanged.connect(self.update_brake)
+        self.slider_brake.setFixedHeight(180)
+        self.slider_brake.setStyleSheet("""
+            QSlider::groove:vertical {
+                background: #A5D8FF;
+                border-radius: 4px;
+                width: 8px;
+                margin: 10px 0;
+            }
+            QSlider::handle:vertical {
+                background: #0077b6;
+                border: 2px solid #005f87;
+                height: 18px;
+                width: 18px;
+                margin: -4px -5px;
+                border-radius: 9px;
+            }
+            QSlider::handle:vertical:hover {
+                background: #0096d1;
+            }
+        """)
+
+        # --- Etiqueta con fondo blanco y texto centrado ---
+        self.lbl_brake = QLabel("Brake: 0.0 V")
+        self.lbl_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_brake.setStyleSheet("""
+            background-color: #FFFFFF;
+            border-radius: 10px;
+            padding: 6px 10px;
+            color: #0077b6;
+            font: 600 11pt "Segoe UI";
+        """)
+
+        v_brake.addStretch()
+        v_brake.addWidget(self.slider_brake, alignment=Qt.AlignmentFlag.AlignHCenter)
+        v_brake.addSpacing(10)
+        v_brake.addWidget(self.lbl_brake, alignment=Qt.AlignmentFlag.AlignHCenter)
+        v_brake.addStretch()
+
+        self.group_brake.setLayout(v_brake)
+        top_row.addWidget(self.group_brake, 1)
+
+
+        # === FILA INFERIOR ===
+        bottom_row = QHBoxLayout()
 
         # --- Gráfica ---
         self.group_graph = QGroupBox("📈 Real-Time Graph")
+        self.group_graph.setObjectName("group_grafica")
+
         v_graph = QHBoxLayout()
+
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#FFFFFF")
-        self.plot_widget.showGrid(x=True, y=True)
-        self.plot_widget.setLabel("left", "Magnitude")
-        self.plot_widget.setLabel("bottom", "Time (s)")
-        self.curves = {name: self.plot_widget.plot(pen=pg.mkPen(color, width=2))
-                       for name, color in zip(
-                           ["Inlet Temp", "Ambient Temp", "RPM", "Air Flow", "Torque", "Pressure"],
-                           ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
-                       )}
-        v_graph.addWidget(self.plot_widget)
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_widget.setLabel("left", "Magnitude", color="#000")
+        self.plot_widget.setLabel("bottom", "Time (s)", color="#000")
+
+        self.curves = {
+            "Inlet Temp": self.plot_widget.plot(pen=pg.mkPen("#3498DB", width=2)),
+            "Ambient Temp": self.plot_widget.plot(pen=pg.mkPen("#9B59B6", width=2)),
+            "RPM": self.plot_widget.plot(pen=pg.mkPen("#F39C12", width=2)),
+            "Air Flow": self.plot_widget.plot(pen=pg.mkPen("#27AE60", width=2)),
+            "Torque": self.plot_widget.plot(pen=pg.mkPen("#E74C3C", width=2)),
+            "Pressure": self.plot_widget.plot(pen=pg.mkPen("#2C3E50", width=2)),
+        }
+
+        # --- Leyenda lateral con checkboxes ---
+        legend_layout = QVBoxLayout()
+        legend_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        legend_layout.setSpacing(6)
+        self.checks = {}
+        for name, color in zip(
+            self.curves.keys(),
+            ["#3498DB", "#9B59B6", "#F39C12", "#27AE60", "#E74C3C", "#2C3E50"]
+        ):
+            cb = pg.QtWidgets.QCheckBox(name)
+            cb.setChecked(True)
+            cb.setStyleSheet(f"color: {color}; font-weight: 600; font-size: 10pt;")
+            cb.stateChanged.connect(self.update_curve_visibility)
+            self.checks[name] = cb
+            legend_layout.addWidget(cb)
+
+        legend_widget = QWidget()
+        legend_widget.setLayout(legend_layout)
+
+        v_graph.addWidget(self.plot_widget, stretch=4)
+        v_graph.addWidget(legend_widget, stretch=1)
         self.group_graph.setLayout(v_graph)
-        left_layout.addWidget(self.group_graph)
+        bottom_row.addWidget(self.group_graph, 7)
 
-        right_layout = QVBoxLayout()
-        self.group_table = QGroupBox("📋 Saved Measurements")
-        v_table = QVBoxLayout()
-        self.table = QTableWidget(0, 9)
-        self.table.setHorizontalHeaderLabels([
-            "#", "Date", "Time", "Inlet (°C)", "Ambient (°C)",
-            "RPM", "Air Flow", "Torque (N·m)", "Pressure (Pa)"
-        ])
-        v_table.addWidget(self.table)
-        self.group_table.setLayout(v_table)
-        right_layout.addWidget(self.group_table)
 
-        main_layout.addLayout(left_layout, 6)
-        main_layout.addLayout(right_layout, 4)
+        # --- Logs ---
+        self.group_logs = QGroupBox("🧾 Logs")
+        self.group_logs.setObjectName("group_logs")  
+        v_logs = QVBoxLayout()
+
+        self.txt_logs = QTextEdit()
+        self.txt_logs.setReadOnly(True)
+        self.txt_logs.setStyleSheet("background: transparent; font: 10pt 'Consolas'; color: #FFFFFF;")
+
+        v_logs.addWidget(self.txt_logs)
+        self.group_logs.setLayout(v_logs)
+        bottom_row.addWidget(self.group_logs, 3)
+
+
+        # === COMBINAR TODO ===
+        main_layout.addLayout(top_row, 5)
+        main_layout.addLayout(bottom_row, 5)
 
         widget = QWidget()
         widget.setLayout(main_layout)
         return widget
+
 
 
     def open_practice_view(self):
@@ -532,6 +624,10 @@ class MainWindow(QMainWindow):
                 curve.setData(self.data_x, self.data[label])
             else:
                 curve.clear()
+
+        self.rpm_dial.setValue(int(data["RPM"]))
+        self.lbl_rpm_value.setText(f"{data['RPM']:.0f} RPM")
+
 
     def update_curve_visibility(self):
         """Show/hide curves when checkboxes are toggled"""
