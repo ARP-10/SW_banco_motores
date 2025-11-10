@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog, QDial
 )
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QSize
 from labjack_interface import LabJackInterface
 import pyqtgraph as pg
 import time, sys, datetime
@@ -420,9 +420,8 @@ class MainWindow(QMainWindow):
         # --- Barra vertical de freno ---
         self.group_brake = QGroupBox("🧱 Brake Control")
         self.group_brake.setObjectName("group_brake")
-        v_brake = QVBoxLayout()
 
-        # --- Slider vertical con estilo visual mejorado ---
+        v_brake = QVBoxLayout()
         self.slider_brake = QSlider(Qt.Orientation.Vertical)
         self.slider_brake.setRange(0, 50)
         self.slider_brake.setValue(0)
@@ -448,7 +447,6 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # --- Etiqueta con fondo blanco y texto centrado ---
         self.lbl_brake = QLabel("Brake: 0.0 V")
         self.lbl_brake.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_brake.setStyleSheet("""
@@ -467,6 +465,25 @@ class MainWindow(QMainWindow):
 
         self.group_brake.setLayout(v_brake)
         top_row.addWidget(self.group_brake, 1)
+
+
+        # --- Bloque independiente: animación del motor ---
+        self.group_gif = QGroupBox()
+        self.group_gif.setObjectName("group_gif")
+
+        v_gif = QVBoxLayout()
+        self.lbl_gif = QLabel()
+        self.lbl_gif.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.movie = pg.QtGui.QMovie("Diesel_Engine_(4_cycle_running).gif")
+        self.movie.setScaledSize(QSize(200, 280))
+        self.lbl_gif.setMovie(self.movie)
+        self.movie.start()
+
+        v_gif.addWidget(self.lbl_gif, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.group_gif.setLayout(v_gif)
+        top_row.addWidget(self.group_gif, 2)
+
+
 
 
         # === FILA INFERIOR ===
