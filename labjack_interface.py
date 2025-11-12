@@ -41,12 +41,13 @@ class LabJackInterface:
 
         try:
             vals = {}
-            vals["Tentrada"] = self.device.getAIN(0)  # AIN0
-            vals["Tambiente"] = self.device.getAIN(1)  # AIN1
-            vals["RPM"] = self.device.getAIN(5)  # AIN5
-            vals["Caudal"] = self.device.getAIN(4)  # AIN4
-            vals["Par"] = self.device.getAIN(7)  # AIN7
-            vals["Presion"] = self.device.getAIN(6, 32)  # AIN6 (rango 0–3.6 V)
+
+            vals["Tentrada"] = self.device.getAIN(0, 32)  # AIN0
+            vals["Tambiente"] = self.device.getAIN(1, 32) # AIN1
+            vals["RPM"] = self.device.getAIN(5, 32)       # AIN5
+            vals["Caudal"] = self.device.getAIN(4, 32)    # AIN4
+            vals["Par"] = self.device.getAIN(7, 32)       # AIN7
+            vals["Presion"] = self.device.getAIN(6, 32)   # AIN6 
 
             return vals
 
