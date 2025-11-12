@@ -28,7 +28,7 @@ class RPMAguja(QWidget):
         super().__init__(parent)
         self._value = 0
         self._max_value = 3600
-        self.setMinimumSize(280, 280)
+        self.setMinimumSize(260, 260)
         self._bg_color = QColor("#f0f0f0")
 
     def setValue(self, value):
@@ -645,8 +645,8 @@ class MainWindow(QMainWindow):
 
 
         # === COMBINAR TODO ===
-        main_layout.addLayout(top_row, 5)
-        main_layout.addLayout(bottom_row, 5)
+        main_layout.addLayout(top_row, 4)
+        main_layout.addLayout(bottom_row, 6)
 
         widget = QWidget()
         widget.setLayout(main_layout)
